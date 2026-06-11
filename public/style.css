@@ -468,3 +468,10 @@ body {
 .chart-card {
     flex-direction: column;
 }
+
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 250px;
+}
