@@ -124,6 +124,49 @@ app.get('/api/stats/top-artists', (req, res) => {
     });
 });
 
+app.get('/api/stats/artist/:name', (req, res) => {
+    const artistName = req.params.name;
+    const condition = getTimeCondition(req.query.filter);
+    
+    // 1. Get summary
+    db.get(`SELECT artist_name, MAX(artist_id) as artist_id,
+            SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+            FROM history WHERE ${condition} AND artist_name = ?
+            GROUP BY artist_name`, [artistName], (err, summary) => {
+        if (err) return res.status(500).json({error: err.message});
+        
+        // 2. Get Top Tracks
+        db.all(`SELECT track_name, MAX(track_id) as track_id, MAX(album_id) as album_id,
+                SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+                SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+                SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+                FROM history WHERE ${condition} AND artist_name = ?
+                GROUP BY track_name
+                ORDER BY plays DESC, views DESC LIMIT 10`, [artistName], (err, tracks) => {
+            if (err) return res.status(500).json({error: err.message});
+            
+            // 3. Get Top Albums
+            db.all(`SELECT album_name, MAX(album_id) as album_id,
+                    SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+                    SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+                    SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+                    FROM history WHERE ${condition} AND artist_name = ? AND album_name != 'Unknown'
+                    GROUP BY album_name
+                    ORDER BY plays DESC, views DESC LIMIT 10`, [artistName], (err, albums) => {
+                if (err) return res.status(500).json({error: err.message});
+                
+                res.json({
+                    summary: summary || { views: 0, plays: 0, playtime: 0, artist_name: artistName },
+                    top_tracks: tracks,
+                    top_albums: albums
+                });
+            });
+        });
+    });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Viniz server running on port ${PORT}`);
 });

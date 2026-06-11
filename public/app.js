@@ -38,14 +38,15 @@ async function fetchSummary() {
             labels: ['Completed Plays', 'Views (Incomplete)'],
             datasets: [{
                 data: [data.plays || 0, Math.max(0, (data.views || 0) - (data.plays || 0))],
-                backgroundColor: ['#ff9a9e', '#a1c4fd'],
+                backgroundColor: ['#fa233b', 'rgba(255,255,255,0.2)'],
                 borderWidth: 0
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { color: '#fff' } }
+                legend: { position: 'bottom', labels: { color: '#fff', font: { family: 'Inter', size: 12 } } }
             }
         }
     });
@@ -60,6 +61,10 @@ async function fetchList(type, filter) {
     
     data.forEach(item => {
         const li = document.createElement('li');
+        if (type === 'artists') {
+            li.classList.add('artist-item');
+            li.addEventListener('click', () => openArtistModal(item.artist_name, filter));
+        }
         
         let imgUrl = '';
         let title = '';
@@ -74,7 +79,7 @@ async function fetchList(type, filter) {
             title = item.album_name;
             sub = item.artist_name;
         } else if (type === 'artists') {
-            imgUrl = getCoverArtUrl(item.artist_id); // Often Navidrome artist art is just same endpoint
+            imgUrl = getCoverArtUrl(item.artist_id);
             title = item.artist_name;
             sub = `${item.plays} plays`;
         }
@@ -100,6 +105,77 @@ document.querySelectorAll('.time-toggler').forEach(select => {
         fetchList(type, e.target.value);
     });
 });
+
+// Modal Logic
+const modal = document.getElementById('artist-modal');
+const closeModalBtn = document.getElementById('close-modal');
+
+closeModalBtn.addEventListener('click', () => {
+    modal.classList.remove('active');
+});
+
+modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+        modal.classList.remove('active');
+    }
+});
+
+async function openArtistModal(artistName, filter) {
+    modal.classList.add('active');
+    
+    // Clear old data while loading
+    document.getElementById('modal-artist-name').innerText = artistName;
+    document.getElementById('modal-artist-plays').innerText = 'Loading...';
+    document.getElementById('modal-artist-playtime').innerText = '';
+    document.getElementById('modal-top-tracks').innerHTML = '';
+    document.getElementById('modal-top-albums').innerHTML = '';
+    
+    try {
+        const res = await fetch(`/api/stats/artist/${encodeURIComponent(artistName)}?filter=${filter}`);
+        const data = await res.json();
+        
+        document.getElementById('modal-artist-image').src = getCoverArtUrl(data.summary.artist_id);
+        document.getElementById('modal-artist-plays').innerText = `${data.summary.plays || 0} plays`;
+        document.getElementById('modal-artist-playtime').innerText = formatPlaytime(data.summary.playtime);
+        
+        // Render Top Tracks
+        const tracksList = document.getElementById('modal-top-tracks');
+        data.top_tracks.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="cover-art" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <div class="item-info">
+                    <span class="item-name">${item.track_name}</span>
+                    <span class="item-sub">${item.views} views</span>
+                </div>
+                <div class="item-stats">
+                    <span class="item-playtime">${formatPlaytime(item.playtime)}</span>
+                </div>
+            `;
+            tracksList.appendChild(li);
+        });
+
+        // Render Top Albums
+        const albumsList = document.getElementById('modal-top-albums');
+        data.top_albums.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <img src="${getCoverArtUrl(item.album_id)}" class="cover-art" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <div class="item-info">
+                    <span class="item-name">${item.album_name}</span>
+                    <span class="item-sub">${item.plays} plays</span>
+                </div>
+                <div class="item-stats">
+                    <span class="item-playtime">${formatPlaytime(item.playtime)}</span>
+                </div>
+            `;
+            albumsList.appendChild(li);
+        });
+        
+    } catch (err) {
+        console.error('Failed to fetch artist details:', err);
+    }
+}
 
 // Initial Load
 fetchSummary();
