@@ -11,6 +11,15 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/apis/listenbrainz/1/validate-token', (req, res) => {
+    res.status(200).json({
+        code: 200,
+        message: "Token valid.",
+        valid: true,
+        user_name: "Vincent"
+    });
+});
+
 app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
     const listens = req.body.payload;
     const listenType = req.body.listen_type;
