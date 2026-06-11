@@ -20,8 +20,6 @@ app.get('/apis/listenbrainz/1/validate-token', (req, res) => {
     });
 });
 
-let activeSession = null;
-
 app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
     const listens = req.body.payload;
     const listenType = req.body.listen_type;
@@ -30,71 +28,35 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
         return res.status(200).json({status: "ok"});
     }
     
-    const listen = listens[0];
+    const eventType = listenType === 'playing_now' ? 'view' : 'play';
     const timestamp = Math.floor(Date.now() / 1000);
-    const trackName = listen.track_metadata.track_name || 'Unknown';
-    const artistName = listen.track_metadata.artist_name || 'Unknown';
-    const albumName = listen.track_metadata.release_name || 'Unknown';
-    const userName = req.headers.authorization || 'Unknown';
     
-    naviDb.get(`SELECT id as track_id, album_id, artist_id FROM media_file 
-                WHERE title = ? AND artist = ?`, [trackName, artistName], (err, row) => {
-        let trackId = '', albumId = '', artistId = '';
-        if (row) {
-            trackId = row.track_id;
-            albumId = row.album_id;
-            artistId = row.artist_id;
-        }
+    listens.forEach(listen => {
+        const trackName = listen.track_metadata.track_name || 'Unknown';
+        const artistName = listen.track_metadata.artist_name || 'Unknown';
+        const albumName = listen.track_metadata.release_name || 'Unknown';
+        const userName = req.headers.authorization || 'Unknown';
         
-        const songIdentifier = `${trackName}-${artistName}`;
-        
-        if (listenType === 'playing_now') {
-            if (activeSession) {
-                if (activeSession.identifier !== songIdentifier) {
-                    // Song changed, log the previous song's playtime
-                    let elapsed = timestamp - activeSession.start_time;
-                    if (elapsed > 300) elapsed = 300; // 5-minute cap
-                    
-                    if (elapsed > 5) {
-                        db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'play', ?)`,
-                            [activeSession.userName, activeSession.trackName, activeSession.artistName, activeSession.albumName, activeSession.trackId, activeSession.albumId, activeSession.artistId, elapsed, timestamp]
-                        );
-                    }
-                    
-                    // Start new session
-                    activeSession = { identifier: songIdentifier, userName, trackName, artistName, albumName, trackId, albumId, artistId, start_time: timestamp };
-                    db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'view', ?)`,
-                        [userName, trackName, artistName, albumName, trackId, albumId, artistId, timestamp]
-                    );
-                }
-            } else {
-                // No active session, start one
-                activeSession = { identifier: songIdentifier, userName, trackName, artistName, albumName, trackId, albumId, artistId, start_time: timestamp };
-                db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'view', ?)`,
-                    [userName, trackName, artistName, albumName, trackId, albumId, artistId, timestamp]
-                );
+        naviDb.get(`SELECT id as track_id, album_id, artist_id, duration FROM media_file 
+                    WHERE title = ? AND artist = ?`, [trackName, artistName], (err, row) => {
+            let trackId = '', albumId = '', artistId = '', duration = 0;
+            if (row) {
+                trackId = row.track_id;
+                albumId = row.album_id;
+                artistId = row.artist_id;
+                duration = row.duration || 0;
             }
-        } else if (listenType === 'single') {
-            if (activeSession && activeSession.identifier === songIdentifier) {
-                let elapsed = timestamp - activeSession.start_time;
-                if (elapsed > 300) elapsed = 300; // 5-minute cap
-                
-                db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'play', ?)`,
-                    [userName, trackName, artistName, albumName, trackId, albumId, artistId, elapsed, timestamp]
-                );
-                activeSession = null;
-            } else {
-                const fallbackDuration = listen.track_metadata.additional_info?.duration_ms ? Math.min(300, Math.round(listen.track_metadata.additional_info.duration_ms / 1000)) : 0;
-                db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'play', ?)`,
-                    [userName, trackName, artistName, albumName, trackId, albumId, artistId, fallbackDuration, timestamp]
-                );
+            
+            // Fallback to Navidrome metadata if Navidrome database didn't have duration
+            if (!duration && listen.track_metadata.additional_info?.duration_ms) {
+                duration = Math.round(listen.track_metadata.additional_info.duration_ms / 1000);
             }
-        }
+            
+            db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userName, trackName, artistName, albumName, trackId, albumId, artistId, duration, eventType, timestamp]
+            );
+        });
     });
 
     res.status(200).json({status: "ok"});
