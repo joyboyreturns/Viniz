@@ -11,11 +11,13 @@ function getCoverArtUrl(id) {
 }
 
 function formatPlaytime(seconds) {
-    if (!seconds) return '0m';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
+    if (!seconds) return '0.0 min';
+    const minutes = seconds / 60;
+    if (minutes > 9999.9) {
+        const hours = seconds / 3600;
+        return `${hours.toFixed(1)} hr`;
+    }
+    return `${minutes.toFixed(1)} min`;
 }
 
 let barChartInstance = null;
@@ -51,16 +53,22 @@ function renderChart() {
         }
     }
 
+    const isViews = currentChartMode === 'views';
     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, '#fa233b');
-    gradient.addColorStop(1, 'rgba(250, 35, 59, 0.1)');
+    if (isViews) {
+        gradient.addColorStop(0, '#fa233b');
+        gradient.addColorStop(1, 'rgba(250, 35, 59, 0.1)');
+    } else {
+        gradient.addColorStop(0, '#0a84ff');
+        gradient.addColorStop(1, 'rgba(10, 132, 255, 0.1)');
+    }
 
     barChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
-                label: currentChartMode === 'views' ? 'Views' : 'Plays',
+                label: isViews ? 'Views' : 'Plays',
                 data: dataPoints,
                 backgroundColor: gradient,
                 borderRadius: 6,
@@ -71,7 +79,19 @@ function renderChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
+                y: { 
+                    beginAtZero: true, 
+                    grid: { color: 'rgba(255,255,255,0.05)' }, 
+                    ticks: { 
+                        color: 'rgba(255,255,255,0.5)',
+                        stepSize: 1,
+                        callback: function(value) {
+                            if (Math.floor(value) === value) {
+                                return value;
+                            }
+                        }
+                    } 
+                },
                 x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } }
             },
             plugins: {
