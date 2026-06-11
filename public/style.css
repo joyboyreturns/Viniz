@@ -377,3 +377,94 @@ body {
     width: 40px;
     height: 40px;
 }
+
+/* Search Bar */
+.search-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    align-items: center;
+}
+
+#search-input {
+    flex: 1;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-lg);
+    font-size: 1rem;
+    outline: none;
+    backdrop-filter: blur(var(--blur-amount));
+}
+
+#search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+#close-search-btn {
+    background: transparent;
+    color: var(--accent-color);
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+/* Hidden Utility */
+.hidden {
+    display: none !important;
+}
+
+/* Search Results Overlay */
+.search-results-overlay {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+@media (min-width: 1024px) {
+    .search-results-overlay {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Segmented Control for Chart */
+.chart-header {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.segmented-control {
+    display: flex;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 2px;
+}
+
+.segmented-control input[type="radio"] {
+    display: none;
+}
+
+.segmented-control label {
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    border-radius: 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.segmented-control input[type="radio"]:checked + label {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.chart-card {
+    flex-direction: column;
+}

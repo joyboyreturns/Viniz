@@ -167,6 +167,64 @@ app.get('/api/stats/artist/:name', (req, res) => {
     });
 });
 
+app.get('/api/stats/chart', (req, res) => {
+    // Last 7 days chart data
+    db.all(`SELECT date(timestamp, 'unixepoch', 'localtime') as day,
+            SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
+            FROM history
+            WHERE timestamp >= strftime('%s', 'now', '-7 days')
+            GROUP BY day
+            ORDER BY day ASC`, [], (err, rows) => {
+        if (err) return res.status(500).json({error: err.message});
+        res.json(rows);
+    });
+});
+
+app.get('/api/stats/search', (req, res) => {
+    const query = `%${req.query.q}%`;
+    const condition = getTimeCondition(req.query.filter);
+    
+    // Search Tracks
+    db.all(`SELECT track_name, MAX(track_id) as track_id, MAX(album_id) as album_id, artist_name,
+            SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+            FROM history WHERE ${condition} AND track_name LIKE ?
+            GROUP BY track_name
+            ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, tracks) => {
+        if (err) return res.status(500).json({error: err.message});
+        
+        // Search Albums
+        db.all(`SELECT album_name, MAX(album_id) as album_id, artist_name,
+                SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+                SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+                SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+                FROM history WHERE ${condition} AND album_name LIKE ? AND album_name != 'Unknown'
+                GROUP BY album_name
+                ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, albums) => {
+            if (err) return res.status(500).json({error: err.message});
+            
+            // Search Artists
+            db.all(`SELECT artist_name, MAX(artist_id) as artist_id,
+                    SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+                    SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+                    SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+                    FROM history WHERE ${condition} AND artist_name LIKE ?
+                    GROUP BY artist_name
+                    ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, artists) => {
+                if (err) return res.status(500).json({error: err.message});
+                
+                res.json({
+                    tracks: tracks,
+                    albums: albums,
+                    artists: artists
+                });
+            });
+        });
+    });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Viniz server running on port ${PORT}`);
 });

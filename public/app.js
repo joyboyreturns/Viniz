@@ -18,7 +18,75 @@ function formatPlaytime(seconds) {
     return `${m}m`;
 }
 
-let pieChartInstance = null;
+let barChartInstance = null;
+let chartDataCache = [];
+let currentChartMode = 'views';
+
+async function fetchChartData() {
+    const res = await fetch('/api/stats/chart');
+    chartDataCache = await res.json();
+    renderChart();
+}
+
+function renderChart() {
+    const ctx = document.getElementById('summaryBarChart').getContext('2d');
+    if (barChartInstance) barChartInstance.destroy();
+    
+    // Fill missing days
+    const labels = [];
+    const dataPoints = [];
+    
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dayStr = d.toISOString().split('T')[0];
+        
+        const row = chartDataCache.find(r => r.day === dayStr);
+        labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+        if (row) {
+            dataPoints.push(currentChartMode === 'views' ? row.views : row.plays);
+        } else {
+            dataPoints.push(0);
+        }
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, '#fa233b');
+    gradient.addColorStop(1, 'rgba(250, 35, 59, 0.1)');
+
+    barChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: currentChartMode === 'views' ? 'Views' : 'Plays',
+                data: dataPoints,
+                backgroundColor: gradient,
+                borderRadius: 6,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
+                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+document.querySelectorAll('input[name="chart-toggle"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        currentChartMode = e.target.value;
+        renderChart();
+    });
+});
 
 async function fetchSummary() {
     const res = await fetch('/api/stats/summary?filter=all');
@@ -27,43 +95,17 @@ async function fetchSummary() {
     document.getElementById('total-plays').innerText = data.plays || 0;
     document.getElementById('total-playtime').innerText = formatPlaytime(data.playtime || 0);
     document.getElementById('total-views').innerText = data.views || 0;
-
-    const ctx = document.getElementById('summaryPieChart').getContext('2d');
-    
-    if (pieChartInstance) pieChartInstance.destroy();
-    
-    pieChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Completed Plays', 'Views (Incomplete)'],
-            datasets: [{
-                data: [data.plays || 0, Math.max(0, (data.views || 0) - (data.plays || 0))],
-                backgroundColor: ['#fa233b', 'rgba(255,255,255,0.2)'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#fff', font: { family: 'Inter', size: 12 } } }
-            }
-        }
-    });
 }
 
-async function fetchList(type, filter) {
-    const res = await fetch(`/api/stats/top-${type}?filter=${filter}`);
-    const data = await res.json();
-    
-    const listEl = document.getElementById(`top-${type}-list`);
+function renderListItems(dataList, listElId, type) {
+    const listEl = document.getElementById(listElId);
     listEl.innerHTML = '';
     
-    data.forEach(item => {
+    dataList.forEach(item => {
         const li = document.createElement('li');
         if (type === 'artists') {
             li.classList.add('artist-item');
-            li.addEventListener('click', () => openArtistModal(item.artist_name, filter));
+            li.addEventListener('click', () => openArtistModal(item.artist_name, 'all'));
         }
         
         let imgUrl = '';
@@ -99,12 +141,67 @@ async function fetchList(type, filter) {
     });
 }
 
-document.querySelectorAll('.time-toggler').forEach(select => {
+async function fetchList(type, filter) {
+    const res = await fetch(`/api/stats/top-${type}?filter=${filter}`);
+    const data = await res.json();
+    renderListItems(data, `top-${type}-list`, type);
+}
+
+document.querySelectorAll('.time-toggler:not(#search-time-filter)').forEach(select => {
     select.addEventListener('change', (e) => {
         const type = e.target.getAttribute('data-target').replace('top-', '');
         fetchList(type, e.target.value);
     });
 });
+
+// Search Logic
+const searchInput = document.getElementById('search-input');
+const searchFilter = document.getElementById('search-time-filter');
+const closeSearchBtn = document.getElementById('close-search-btn');
+const mainDashboard = document.getElementById('main-dashboard');
+const searchOverlay = document.getElementById('search-results-overlay');
+
+let searchTimeout = null;
+
+async function performSearch() {
+    const query = searchInput.value.trim();
+    if (!query) {
+        closeSearch();
+        return;
+    }
+    
+    mainDashboard.classList.add('hidden');
+    searchOverlay.classList.remove('hidden');
+    closeSearchBtn.classList.remove('hidden');
+    
+    const filter = searchFilter.value;
+    const res = await fetch(`/api/stats/search?q=${encodeURIComponent(query)}&filter=${filter}`);
+    const data = await res.json();
+    
+    renderListItems(data.tracks, 'search-tracks-list', 'tracks');
+    renderListItems(data.albums, 'search-albums-list', 'albums');
+    renderListItems(data.artists, 'search-artists-list', 'artists');
+}
+
+function closeSearch() {
+    searchInput.value = '';
+    mainDashboard.classList.remove('hidden');
+    searchOverlay.classList.add('hidden');
+    closeSearchBtn.classList.add('hidden');
+}
+
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 300);
+});
+
+searchFilter.addEventListener('change', () => {
+    if (searchInput.value.trim()) {
+        performSearch();
+    }
+});
+
+closeSearchBtn.addEventListener('click', closeSearch);
 
 // Modal Logic
 const modal = document.getElementById('artist-modal');
@@ -179,6 +276,7 @@ async function openArtistModal(artistName, filter) {
 
 // Initial Load
 fetchSummary();
+fetchChartData();
 fetchList('tracks', 'today');
 fetchList('albums', 'today');
 fetchList('artists', 'today');

@@ -15,9 +15,39 @@
                 <h1>Viniz</h1>
                 <p>Your listening history, beautifully visualized.</p>
             </div>
+            
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Search artists, songs, albums...">
+                <select class="time-toggler" id="search-time-filter" data-target="search">
+                    <option value="today">Today</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="14d">Last 14 Days</option>
+                    <option value="1m">Last 1 Month</option>
+                    <option value="3m">Last 3 Months</option>
+                    <option value="6m">Last 6 Months</option>
+                    <option value="all" selected>All Time</option>
+                </select>
+                <button id="close-search-btn" class="hidden">Cancel</button>
+            </div>
         </header>
 
-        <main class="dashboard">
+        <!-- Search Results Overlay -->
+        <main class="search-results-overlay hidden" id="search-results-overlay">
+            <div class="list-container" id="search-tracks-container">
+                <div class="list-header"><h2>Songs</h2></div>
+                <ul id="search-tracks-list" class="stats-list compact-list"></ul>
+            </div>
+            <div class="list-container" id="search-albums-container">
+                <div class="list-header"><h2>Albums</h2></div>
+                <ul id="search-albums-list" class="stats-list compact-list"></ul>
+            </div>
+            <div class="list-container" id="search-artists-container">
+                <div class="list-header"><h2>Artists</h2></div>
+                <ul id="search-artists-list" class="stats-list compact-list"></ul>
+            </div>
+        </main>
+
+        <main class="dashboard" id="main-dashboard">
             <section id="summary-section">
                 <div class="summary-grid">
                     <div class="summary-card stat-card">
@@ -43,7 +73,15 @@
                     </div>
                 </div>
                 <div class="summary-card chart-card">
-                    <canvas id="summaryPieChart"></canvas>
+                    <div class="chart-header">
+                        <div class="segmented-control">
+                            <input type="radio" id="toggle-views" name="chart-toggle" value="views" checked>
+                            <label for="toggle-views">Views</label>
+                            <input type="radio" id="toggle-plays" name="chart-toggle" value="plays">
+                            <label for="toggle-plays">Plays</label>
+                        </div>
+                    </div>
+                    <canvas id="summaryBarChart"></canvas>
                 </div>
             </section>
 
