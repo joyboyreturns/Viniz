@@ -49,6 +49,18 @@
 
         <main class="dashboard" id="main-dashboard">
             <section id="summary-section">
+                <div class="list-header">
+                    <h2>Overview</h2>
+                    <select class="time-toggler" data-target="summary">
+                        <option value="today" selected>Today</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="14d">Last 14 Days</option>
+                        <option value="1m">Last 1 Month</option>
+                        <option value="3m">Last 3 Months</option>
+                        <option value="6m">Last 6 Months</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
                 <div class="summary-grid">
                     <div class="summary-card stat-card">
                         <div class="stat-icon">▶</div>

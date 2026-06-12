@@ -66,8 +66,13 @@ function getTimeCondition(filter) {
     const now = Math.floor(Date.now() / 1000);
     switch(filter) {
         case 'today':
-            const startOfDay = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
-            return `timestamp >= ${startOfDay}`;
+            const ms = Date.now();
+            const dayStart = new Date(ms);
+            dayStart.setUTCHours(5, 30, 0, 0);
+            if (dayStart.getTime() > ms) {
+                dayStart.setUTCDate(dayStart.getUTCDate() - 1);
+            }
+            return `timestamp >= ${Math.floor(dayStart.getTime() / 1000)}`;
         case '7d': return `timestamp >= ${now - 7*86400}`;
         case '14d': return `timestamp >= ${now - 14*86400}`;
         case '1m': return `timestamp >= ${now - 30*86400}`;

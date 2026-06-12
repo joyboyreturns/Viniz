@@ -108,8 +108,8 @@ document.querySelectorAll('input[name="chart-toggle"]').forEach(radio => {
     });
 });
 
-async function fetchSummary() {
-    const res = await fetch('/api/stats/summary?filter=all');
+async function fetchSummary(filter = 'today') {
+    const res = await fetch(`/api/stats/summary?filter=${filter}`);
     const data = await res.json();
     
     document.getElementById('total-plays').innerText = data.plays || 0;
@@ -169,8 +169,14 @@ async function fetchList(type, filter) {
 
 document.querySelectorAll('.time-toggler:not(#search-time-filter)').forEach(select => {
     select.addEventListener('change', (e) => {
-        const type = e.target.getAttribute('data-target').replace('top-', '');
-        fetchList(type, e.target.value);
+        const target = e.target.getAttribute('data-target');
+        if (target === 'summary') {
+            fetchSummary(e.target.value);
+            fetchChartData();
+        } else {
+            const type = target.replace('top-', '');
+            fetchList(type, e.target.value);
+        }
     });
 });
 
