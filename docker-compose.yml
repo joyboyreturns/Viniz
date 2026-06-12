@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  viniz:
+    build: .
+    container_name: viniz
+    restart: unless-stopped
+    ports:
+      - "4096:4096"
+    volumes:
+      - ./data:/app/data
+      # Make sure to point this to your actual navidrome database file
+      - ./navidrome.db:/mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db:ro
+    environment:
+      - NODE_ENV=production

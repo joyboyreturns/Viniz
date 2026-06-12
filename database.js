@@ -1,12 +1,14 @@
 const sqlite3 = require('sqlite3').verbose();
+const BetterSqlite3 = require('better-sqlite3');
 const path = require('path');
 
 const fs = require('fs');
-const dbPath = '/mnt/cloud_storage/nextcloud/viniz_data/viniz.db';
-const navidromeDbPath = '/mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db';
+const dbPath = process.env.VINIZ_DB_PATH || '/app/data/viniz.db';
+const navidromeDbPath = process.env.NAVIDROME_DB_PATH || '/app/navidrome/navidrome.db';
 
 const db = new sqlite3.Database(dbPath);
-const naviDb = new sqlite3.Database(navidromeDbPath, sqlite3.OPEN_READONLY);
+db.on('error', err => console.error('db error:', err));
+const naviDb = new BetterSqlite3(navidromeDbPath, { readonly: true });
 
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS history (

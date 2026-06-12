@@ -101,9 +101,11 @@ function renderChart() {
     });
 }
 
-document.querySelectorAll('input[name="chart-toggle"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        currentChartMode = e.target.value;
+document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.chart-toggle-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        currentChartMode = e.currentTarget.dataset.mode;
         renderChart();
     });
 });
@@ -294,11 +296,76 @@ async function openArtistModal(artistName, filter) {
             `;
             albumsList.appendChild(li);
         });
-        
-    } catch (err) {
-        console.error('Failed to fetch artist details:', err);
+            } catch (e) {
+            console.error('Failed to load data:', e);
+        }
     }
-}
+    
+    // Export functionality
+    document.getElementById('export-btn').addEventListener('click', async () => {
+        try {
+            const response = await fetch(`/api/export`);
+            if (!response.ok) throw new Error('Export failed');
+            const data = await response.json();
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `viniz-export-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('Failed to export data: ' + e.message);
+        }
+    });
+
+    // Import functionality
+    const importBtn = document.getElementById('import-btn');
+    const importFile = document.getElementById('import-file');
+
+    importBtn.addEventListener('click', () => {
+        importFile.click();
+    });
+
+    importFile.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if (!Array.isArray(data)) throw new Error('Invalid format. Expected JSON array.');
+
+                importBtn.innerText = 'Importing...';
+                importBtn.disabled = true;
+
+                const response = await fetch(`/api/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Import failed');
+                }
+
+                alert(`Successfully imported data!`);
+                window.location.reload();
+            } catch (err) {
+                alert('Import failed: ' + err.message);
+            } finally {
+                importBtn.innerText = 'Import Data';
+                importBtn.disabled = false;
+                importFile.value = ''; // Reset file input
+            }
+        };
+        reader.readAsText(file);
+    });
 
 // Initial Load
 fetchSummary();

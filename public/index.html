@@ -14,6 +14,11 @@
             <div class="header-content">
                 <h1>Viniz</h1>
                 <p>Your listening history, beautifully visualized.</p>
+                <div class="header-actions" style="margin-top: 10px;">
+                    <button id="export-btn" class="action-btn">Export Data</button>
+                    <button id="import-btn" class="action-btn">Import Data</button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
             </div>
             
             <div class="search-container">
@@ -49,52 +54,43 @@
 
         <main class="dashboard" id="main-dashboard">
             <section id="summary-section">
-                <div class="list-header">
+                <div class="section-header">
                     <h2>Overview</h2>
-                    <select class="time-toggler" data-target="summary">
-                        <option value="today" selected>Today</option>
-                        <option value="7d">Last 7 Days</option>
-                        <option value="14d">Last 14 Days</option>
-                        <option value="1m">Last 1 Month</option>
-                        <option value="3m">Last 3 Months</option>
-                        <option value="6m">Last 6 Months</option>
-                        <option value="all">All Time</option>
-                    </select>
-                </div>
-                <div class="summary-grid">
-                    <div class="summary-card stat-card">
-                        <div class="stat-icon">▶</div>
-                        <div class="stat-details">
-                            <h3>Total Plays</h3>
-                            <p id="total-plays">0</p>
+                    <div class="header-controls">
+                        <div class="chart-toggle-group">
+                            <button class="chart-toggle-btn active" data-mode="views">Views</button>
+                            <button class="chart-toggle-btn" data-mode="plays">Plays</button>
                         </div>
-                    </div>
-                    <div class="summary-card stat-card">
-                        <div class="stat-icon">🕒</div>
-                        <div class="stat-details">
-                            <h3>Total Playtime</h3>
-                            <p id="total-playtime">0h 0m</p>
-                        </div>
-                    </div>
-                    <div class="summary-card stat-card">
-                        <div class="stat-icon">👀</div>
-                        <div class="stat-details">
-                            <h3>Total Views</h3>
-                            <p id="total-views">0</p>
-                        </div>
+                        <select class="time-toggler" data-target="summary">
+                            <option value="today" selected>Today</option>
+                            <option value="7d">7 Days</option>
+                            <option value="14d">14 Days</option>
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                            <option value="6m">6 Months</option>
+                            <option value="all">All Time</option>
+                        </select>
                     </div>
                 </div>
-                <div class="summary-card chart-card">
-                    <div class="chart-header">
-                        <div class="segmented-control">
-                            <input type="radio" id="toggle-views" name="chart-toggle" value="views" checked>
-                            <label for="toggle-views">Views</label>
-                            <input type="radio" id="toggle-plays" name="chart-toggle" value="plays">
-                            <label for="toggle-plays">Plays</label>
+                <div class="summary-body">
+                    <div class="summary-grid">
+                        <div class="summary-card stat-card" data-stat="plays">
+                            <div class="stat-value" id="total-plays">0</div>
+                            <div class="stat-label">Plays</div>
+                        </div>
+                        <div class="summary-card stat-card" data-stat="playtime">
+                            <div class="stat-value" id="total-playtime">0.0 min</div>
+                            <div class="stat-label">Playtime</div>
+                        </div>
+                        <div class="summary-card stat-card" data-stat="views">
+                            <div class="stat-value" id="total-views">0</div>
+                            <div class="stat-label">Views</div>
                         </div>
                     </div>
-                    <div class="chart-wrapper">
-                        <canvas id="summaryBarChart"></canvas>
+                    <div class="summary-card chart-card">
+                        <div class="chart-wrapper">
+                            <canvas id="summaryBarChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </section>

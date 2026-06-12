@@ -8,7 +8,7 @@ const app = express();
 const PORT = 4096;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({limit: '50mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/apis/listenbrainz/1/validate-token', (req, res) => {
@@ -21,6 +21,7 @@ app.get('/apis/listenbrainz/1/validate-token', (req, res) => {
 });
 
 app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
+    console.log("RECEIVED LISTEN:", JSON.stringify(req.body));
     const listens = req.body.payload;
     const listenType = req.body.listen_type;
     
@@ -37,26 +38,35 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
         const albumName = listen.track_metadata.release_name || 'Unknown';
         const userName = req.headers.authorization || 'Unknown';
         
-        naviDb.get(`SELECT id as track_id, album_id, artist_id, duration FROM media_file 
-                    WHERE title = ? AND artist = ?`, [trackName, artistName], (err, row) => {
-            let trackId = '', albumId = '', artistId = '', duration = 0;
-            if (row) {
-                trackId = row.track_id;
-                albumId = row.album_id;
-                artistId = row.artist_id;
-                duration = row.duration || 0;
+        let row = null;
+        try {
+            row = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration FROM media_file 
+                                  WHERE title = ? AND artist = ?`).get(trackName, artistName);
+        } catch (e) {
+            console.error('naviDb query error:', e);
+        }
+
+        let trackId = '', albumId = '', artistId = '', duration = 0;
+        if (row) {
+            trackId = row.track_id;
+            albumId = row.album_id;
+            artistId = row.artist_id;
+            duration = row.duration || 0;
+        }
+        
+        // Fallback to Navidrome metadata if Navidrome database didn't have duration
+        if (!duration && listen.track_metadata.additional_info?.duration_ms) {
+            duration = Math.round(listen.track_metadata.additional_info.duration_ms / 1000);
+        }
+        
+        db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userName, trackName, artistName, albumName, trackId, albumId, artistId, duration, eventType, timestamp],
+            (err) => {
+                if (err) console.error('db.run error:', err);
+                else console.log('Successfully inserted history record');
             }
-            
-            // Fallback to Navidrome metadata if Navidrome database didn't have duration
-            if (!duration && listen.track_metadata.additional_info?.duration_ms) {
-                duration = Math.round(listen.track_metadata.additional_info.duration_ms / 1000);
-            }
-            
-            db.run(`INSERT INTO history (user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userName, trackName, artistName, albumName, trackId, albumId, artistId, duration, eventType, timestamp]
-            );
-        });
+        );
     });
 
     res.status(200).json({status: "ok"});
@@ -234,6 +244,47 @@ app.get('/api/stats/search', (req, res) => {
                 });
             });
         });
+    });
+});
+
+app.get('/api/export', (req, res) => {
+    db.all(`SELECT * FROM history`, [], (err, rows) => {
+        if (err) return res.status(500).json({error: err.message});
+        res.json(rows);
+    });
+});
+
+app.post('/api/import', (req, res) => {
+    const data = req.body;
+    if (!Array.isArray(data)) {
+        return res.status(400).json({error: 'Invalid data format. Expected an array.'});
+    }
+
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        const stmt = db.prepare(`INSERT OR REPLACE INTO history 
+            (id, user_name, track_name, artist_name, album_name, track_id, album_id, artist_id, duration, event_type, timestamp) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+        let errorOccurred = false;
+        data.forEach(row => {
+            stmt.run([
+                row.id, row.user_name, row.track_name, row.artist_name, row.album_name,
+                row.track_id, row.album_id, row.artist_id, row.duration, row.event_type, row.timestamp
+            ], (err) => {
+                if (err) errorOccurred = true;
+            });
+        });
+
+        stmt.finalize();
+
+        if (errorOccurred) {
+            db.run('ROLLBACK');
+            res.status(500).json({error: 'Failed to import data.'});
+        } else {
+            db.run('COMMIT');
+            res.json({status: 'ok', message: `Successfully imported ${data.length} records.`});
+        }
     });
 });
 
