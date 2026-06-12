@@ -2,11 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 const fs = require('fs');
-const dbPath = path.resolve(__dirname, 'data', 'viniz.db');
-const dataDir = path.dirname(dbPath);
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-}
+const dbPath = '/mnt/cloud_storage/nextcloud/viniz_data/viniz.db';
 const navidromeDbPath = '/mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db';
 
 const db = new sqlite3.Database(dbPath);
