@@ -7,12 +7,11 @@ services:
       - "4096:4096"
     volumes:
       - ./data:/app/data
-      # Point this to your Navidrome database file (read-only)
-      - /mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db:/app/navidrome/navidrome.db:ro
+      - /path/to/your/navidrome.db:/app/navidrome/navidrome.db:ro
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
-      - NAVIDROME_HOST=nextcloud-navidrome
+      - NAVIDROME_HOST=navidrome
       - NAVIDROME_PORT=4533
       - NAVIDROME_USER=admin
       - NAVIDROME_PASS=your_password_here
@@ -22,9 +21,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - nextcloud_nextcloud_network
-
-networks:
-  nextcloud_nextcloud_network:
-    external: true
