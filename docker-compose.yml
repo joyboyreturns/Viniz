@@ -12,7 +12,7 @@ services:
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
-      - NAVIDROME_HOST=navidrome
+      - NAVIDROME_HOST=nextcloud-navidrome
       - NAVIDROME_PORT=4533
       - NAVIDROME_USER=admin
       - NAVIDROME_PASS=your_password_here
@@ -22,3 +22,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - nextcloud_nextcloud_network
+
+networks:
+  nextcloud_nextcloud_network:
+    external: true
