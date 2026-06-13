@@ -2,10 +2,11 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
 const { db, naviDb } = require('./database');
 
 const app = express();
-const PORT = 4096;
+const PORT = process.env.PORT || 4096;
 
 app.use(cors());
 app.use(bodyParser.json({limit: '50mb'}));
@@ -39,11 +40,13 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
         const userName = req.headers.authorization || 'Unknown';
         
         let row = null;
-        try {
-            row = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration FROM media_file 
-                                  WHERE title = ? AND artist = ?`).get(trackName, artistName);
-        } catch (e) {
-            console.error('naviDb query error:', e);
+        if (naviDb) {
+            try {
+                row = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration FROM media_file 
+                                      WHERE title = ? AND artist = ?`).get(trackName, artistName);
+            } catch (e) {
+                console.error('naviDb query error:', e);
+            }
         }
 
         let trackId = '', albumId = '', artistId = '', duration = 0;
@@ -285,6 +288,28 @@ app.post('/api/import', (req, res) => {
             db.run('COMMIT');
             res.json({status: 'ok', message: `Successfully imported ${data.length} records.`});
         }
+    });
+});
+
+app.get('/api/config', (req, res) => {
+    res.json({
+        NAVIDROME_HOST: process.env.NAVIDROME_HOST || 'localhost',
+        NAVIDROME_PORT: process.env.NAVIDROME_PORT || '4533',
+    });
+});
+
+app.get('/api/cover-art/:id', (req, res) => {
+    const navHost = process.env.NAVIDROME_HOST || 'localhost';
+    const navPort = process.env.NAVIDROME_PORT || '4533';
+    const navUser = process.env.NAVIDROME_USER || '';
+    const navPass = process.env.NAVIDROME_PASS || '';
+    const url = `http://${navHost}:${navPort}/rest/getCoverArt?id=${req.params.id}&u=${navUser}&p=${navPass}&v=1.12.0&c=Viniz`;
+
+    http.get(url, (proxyRes) => {
+        proxyRes.pipe(res);
+    }).on('error', (err) => {
+        console.error('Cover art proxy error:', err.message);
+        res.status(500).json({ error: 'Failed to fetch cover art' });
     });
 });
 

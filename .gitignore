@@ -1,3 +1,7 @@
 node_modules
 data
 viniz.db
+navidrome.db
+navidrome
+.DS_Store
+*.log

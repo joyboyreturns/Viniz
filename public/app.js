@@ -1,13 +1,6 @@
-const NAVIDROME_USER = 'Vincent';
-const NAVIDROME_PASS = 'dog';
-
-function getNavidromeHostname() {
-    return window.location.hostname;
-}
-
 function getCoverArtUrl(id) {
     if (!id) return '';
-    return `http://${getNavidromeHostname()}:4533/rest/getCoverArt?id=${id}&u=${NAVIDROME_USER}&p=${NAVIDROME_PASS}&v=1.12.0&c=Viniz`;
+    return `/api/cover-art/${id}`;
 }
 
 function formatPlaytime(seconds) {
