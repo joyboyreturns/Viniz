@@ -1,6 +1,6 @@
 services:
   viniz:
-    build: .
+    image: ghcr.io/joyboyreturns/viniz:latest
     container_name: viniz
     restart: unless-stopped
     ports:
