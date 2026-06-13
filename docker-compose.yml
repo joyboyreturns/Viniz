@@ -7,6 +7,7 @@ services:
       - "4096:4096"
     volumes:
       - ./data:/app/data
+      # Replace with the path to your Navidrome database file
       - /path/to/your/navidrome.db:/app/navidrome/navidrome.db:ro
     environment:
       - NODE_ENV=production
