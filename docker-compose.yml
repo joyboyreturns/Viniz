@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   viniz:
     build: .
@@ -9,8 +7,8 @@ services:
       - "4096:4096"
     volumes:
       - ./data:/app/data
-      # Make sure to point this to your actual Navidrome database file
-      - /path/to/your/navidrome.db:/app/navidrome/navidrome.db:ro
+      # Point this to your Navidrome database file (read-only)
+      - /mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db:/app/navidrome/navidrome.db:ro
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
@@ -24,9 +22,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - nextcloud_network
-
-networks:
-  nextcloud_network:
-    external: true
