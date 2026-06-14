@@ -49,9 +49,16 @@ db.serialize(() => {
         album_id TEXT,
         artist_id TEXT,
         duration INTEGER,
+        genre TEXT DEFAULT '',
         event_type TEXT,
         timestamp INTEGER
     )`);
+
+    db.run(`ALTER TABLE history ADD COLUMN genre TEXT DEFAULT ''`, (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            console.error('Alter table error:', err.message);
+        }
+    });
 });
 
 module.exports = { db, naviDb };

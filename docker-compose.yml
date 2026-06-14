@@ -1,6 +1,6 @@
 services:
   viniz:
-    image: ghcr.io/joyboyreturns/viniz:latest
+    build: .
     container_name: viniz
     restart: unless-stopped
     ports:
@@ -8,17 +8,23 @@ services:
     volumes:
       - ./data:/app/data
       # Replace with the path to your Navidrome database file
-      - /path/to/your/navidrome.db:/app/navidrome/navidrome.db:ro
+      - /mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db:/app/navidrome/navidrome.db:ro
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
-      - NAVIDROME_HOST=navidrome
+      - NAVIDROME_HOST=nextcloud-navidrome
       - NAVIDROME_PORT=4533
-      - NAVIDROME_USER=admin
-      - NAVIDROME_PASS=your_password_here
+      - NAVIDROME_USER=Vincent
+      - NAVIDROME_PASS=dog
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4096/apis/listenbrainz/1/validate-token"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - nextcloud_nextcloud_network
+
+networks:
+  nextcloud_nextcloud_network:
+    external: true

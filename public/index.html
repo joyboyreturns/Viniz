@@ -12,11 +12,13 @@
     <div class="app-container">
         <header class="main-header">
             <div class="header-content">
-                <h1>Viniz</h1>
-                <p>Your listening history, beautifully visualized.</p>
-                <div class="header-actions" style="margin-top: 10px;">
-                    <button id="export-btn" class="action-btn">Export Data</button>
-                    <button id="import-btn" class="action-btn">Import Data</button>
+                <div class="header-left">
+                    <h1>Viniz</h1>
+                    <p>Your listening history, beautifully visualized.</p>
+                </div>
+                <div class="header-actions">
+                    <button id="export-btn" class="action-btn">Export</button>
+                    <button id="import-btn" class="action-btn">Import</button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
             </div>
@@ -34,6 +36,14 @@
                 </select>
                 <button id="close-search-btn" class="hidden">Cancel</button>
             </div>
+
+            <nav class="tab-nav" id="tab-nav">
+                <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                <button class="tab-btn" data-tab="timeline">Timeline</button>
+                <button class="tab-btn" data-tab="insights">Insights</button>
+                <button class="tab-btn" data-tab="history">History</button>
+                <button class="tab-btn" data-tab="library">Library</button>
+            </nav>
         </header>
 
         <!-- Search Results Overlay -->
@@ -52,7 +62,22 @@
             </div>
         </main>
 
-        <main class="dashboard" id="main-dashboard">
+        <!-- DASHBOARD TAB -->
+        <main class="tab-panel active" id="tab-dashboard">
+            <section id="now-playing-section" class="hidden">
+                <div class="now-playing-card">
+                    <div class="now-playing-glow"></div>
+                    <div class="now-playing-content">
+                        <span class="now-playing-label">Now Playing</span>
+                        <span class="now-playing-track" id="now-playing-track">Track Name</span>
+                        <span class="now-playing-artist" id="now-playing-artist">Artist Name</span>
+                    </div>
+                    <div class="now-playing-bars">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+            </section>
+
             <section id="summary-section">
                 <div class="section-header">
                     <h2>Overview</h2>
@@ -101,43 +126,41 @@
                         <h2>Top Songs</h2>
                         <select class="time-toggler" data-target="top-tracks">
                             <option value="today">Today</option>
-                            <option value="7d">Last 7 Days</option>
-                            <option value="14d">Last 14 Days</option>
-                            <option value="1m">Last 1 Month</option>
-                            <option value="3m">Last 3 Months</option>
-                            <option value="6m">Last 6 Months</option>
+                            <option value="7d">7 Days</option>
+                            <option value="14d">14 Days</option>
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                            <option value="6m">6 Months</option>
                             <option value="all">All Time</option>
                         </select>
                     </div>
                     <ul id="top-tracks-list" class="stats-list"></ul>
                 </div>
-
                 <div class="list-container" id="top-albums-container">
                     <div class="list-header">
                         <h2>Top Albums</h2>
                         <select class="time-toggler" data-target="top-albums">
                             <option value="today">Today</option>
-                            <option value="7d">Last 7 Days</option>
-                            <option value="14d">Last 14 Days</option>
-                            <option value="1m">Last 1 Month</option>
-                            <option value="3m">Last 3 Months</option>
-                            <option value="6m">Last 6 Months</option>
+                            <option value="7d">7 Days</option>
+                            <option value="14d">14 Days</option>
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                            <option value="6m">6 Months</option>
                             <option value="all">All Time</option>
                         </select>
                     </div>
                     <ul id="top-albums-list" class="stats-list"></ul>
                 </div>
-
                 <div class="list-container" id="top-artists-container">
                     <div class="list-header">
                         <h2>Top Artists</h2>
                         <select class="time-toggler" data-target="top-artists">
                             <option value="today">Today</option>
-                            <option value="7d">Last 7 Days</option>
-                            <option value="14d">Last 14 Days</option>
-                            <option value="1m">Last 1 Month</option>
-                            <option value="3m">Last 3 Months</option>
-                            <option value="6m">Last 6 Months</option>
+                            <option value="7d">7 Days</option>
+                            <option value="14d">14 Days</option>
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                            <option value="6m">6 Months</option>
                             <option value="all">All Time</option>
                         </select>
                     </div>
@@ -145,13 +168,191 @@
                 </div>
             </section>
         </main>
+
+        <!-- TIMELINE TAB -->
+        <main class="tab-panel" id="tab-timeline">
+            <section class="page-header">
+                <h2>Listening Timeline</h2>
+                <p>Your latest listens in chronological order.</p>
+            </section>
+            <div id="timeline-feed" class="timeline-feed"></div>
+            <div class="loading-spinner hidden" id="timeline-loader">
+                <div class="spinner"></div>
+                <span>Loading more...</span>
+            </div>
+        </main>
+
+        <!-- INSIGHTS TAB -->
+        <main class="tab-panel" id="tab-insights">
+            <section class="page-header">
+                <h2>Insights</h2>
+                <p>Deep dive into your listening patterns.</p>
+                <div class="header-controls" style="margin-top:0.5rem">
+                    <select class="time-toggler" data-target="insights">
+                        <option value="7d">7 Days</option>
+                        <option value="14d">14 Days</option>
+                        <option value="1m">1 Month</option>
+                        <option value="3m" selected>3 Months</option>
+                        <option value="6m">6 Months</option>
+                        <option value="1y">1 Year</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+            </section>
+
+            <section class="insights-grid">
+                <!-- Unique Counts Row -->
+                <div class="insight-cards-row unique-counts-row">
+                    <div class="summary-card insight-stat-card" data-stat="artists">
+                        <div class="stat-value" id="unique-artists">0</div>
+                        <div class="stat-label">Unique Artists</div>
+                    </div>
+                    <div class="summary-card insight-stat-card" data-stat="albums">
+                        <div class="stat-value" id="unique-albums">0</div>
+                        <div class="stat-label">Unique Albums</div>
+                    </div>
+                    <div class="summary-card insight-stat-card" data-stat="tracks">
+                        <div class="stat-value" id="unique-tracks">0</div>
+                        <div class="stat-label">Unique Songs</div>
+                    </div>
+                    <div class="summary-card insight-stat-card" data-stat="scrobbles">
+                        <div class="stat-value" id="total-scrobbles">0</div>
+                        <div class="stat-label">Total Scrobbles</div>
+                    </div>
+                </div>
+
+                <!-- Streaks Row -->
+                <div class="insight-cards-row streak-row">
+                    <div class="summary-card streak-card">
+                        <div class="streak-icon">🔥</div>
+                        <div class="streak-value" id="current-streak">0</div>
+                        <div class="streak-label">Current Streak</div>
+                        <div class="streak-sub">days</div>
+                    </div>
+                    <div class="summary-card streak-card">
+                        <div class="streak-icon">🏆</div>
+                        <div class="streak-value" id="longest-streak">0</div>
+                        <div class="streak-label">Longest Streak</div>
+                        <div class="streak-sub">days</div>
+                    </div>
+                    <div class="summary-card streak-card">
+                        <div class="streak-icon">📅</div>
+                        <div class="streak-value" id="active-days">0</div>
+                        <div class="streak-label">Active Days</div>
+                        <div class="streak-sub">total</div>
+                    </div>
+                </div>
+
+                <!-- Heatmap -->
+                <div class="insight-chart-card">
+                    <div class="insight-chart-header">
+                        <h3>Activity Heatmap</h3>
+                        <span class="heatmap-legend">
+                            <span class="legend-label">Less</span>
+                            <span class="legend-swatch l0"></span>
+                            <span class="legend-swatch l1"></span>
+                            <span class="legend-swatch l2"></span>
+                            <span class="legend-swatch l3"></span>
+                            <span class="legend-swatch l4"></span>
+                            <span class="legend-label">More</span>
+                        </span>
+                    </div>
+                    <div id="heatmap-container" class="heatmap-container"></div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <div class="insight-chart-card">
+                        <h3>Hourly Distribution</h3>
+                        <div class="chart-wrapper-sm">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="insight-chart-card">
+                        <h3>Day of Week</h3>
+                        <div class="chart-wrapper-sm">
+                            <canvas id="dayOfWeekChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="insight-chart-card">
+                        <h3>Listening Growth</h3>
+                        <div class="chart-wrapper-sm">
+                            <canvas id="growthChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="insight-chart-card">
+                        <h3>Top Genres</h3>
+                        <div class="chart-wrapper-sm">
+                            <canvas id="genreChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- HISTORY TAB -->
+        <main class="tab-panel" id="tab-history">
+            <section class="page-header">
+                <h2>Full History</h2>
+                <div class="history-controls">
+                    <input type="text" id="history-search" placeholder="Filter history..." class="history-search-input">
+                    <select id="history-type-filter" class="time-toggler">
+                        <option value="all">All Types</option>
+                        <option value="play">Plays Only</option>
+                        <option value="view">Views Only</option>
+                    </select>
+                </div>
+            </section>
+            <div class="table-wrapper">
+                <table class="history-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Song</th>
+                            <th>Artist</th>
+                            <th>Album</th>
+                            <th>Type</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="history-pagination"></div>
+            <div class="loading-spinner hidden" id="history-loader">
+                <div class="spinner"></div>
+            </div>
+        </main>
+
+        <!-- LIBRARY TAB -->
+        <main class="tab-panel" id="tab-library">
+            <section class="page-header">
+                <h2>Library</h2>
+                <p>Browse your listened-to music alphabetically.</p>
+                <div class="history-controls" style="margin-top:0.5rem">
+                    <div class="library-tabs">
+                        <button class="library-tab active" data-libtab="artists">Artists</button>
+                        <button class="library-tab" data-libtab="albums">Albums</button>
+                        <button class="library-tab" data-libtab="tracks">Tracks</button>
+                    </div>
+                    <input type="text" id="library-search" placeholder="Filter..." class="history-search-input">
+                </div>
+            </section>
+            <div id="library-grid" class="library-grid"></div>
+            <div class="loading-spinner hidden" id="library-loader">
+                <div class="spinner"></div>
+            </div>
+            <div class="pagination" id="library-pagination"></div>
+        </main>
     </div>
 
     <!-- Artist Detail Modal -->
     <div id="artist-modal" class="modal-overlay">
         <div class="modal-content">
             <button id="close-modal" class="close-btn">&times;</button>
-            
             <div class="modal-header">
                 <img id="modal-artist-image" src="" alt="Artist" class="modal-artist-image">
                 <div class="modal-artist-info">
@@ -162,7 +363,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="modal-body">
                 <div class="modal-section">
                     <h3>Top Songs</h3>
@@ -176,6 +376,31 @@
         </div>
     </div>
 
+    <!-- Album Detail Modal -->
+    <div id="album-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button id="close-album-modal" class="close-btn">&times;</button>
+            <div class="modal-header">
+                <img id="modal-album-image" src="" alt="Album" class="modal-artist-image" style="border-radius:12px">
+                <div class="modal-artist-info">
+                    <h2 id="modal-album-name">Album Name</h2>
+                    <div class="modal-artist-stats">
+                        <span id="modal-album-artist">Artist</span> &bull;
+                        <span id="modal-album-plays">0 plays</span> &bull;
+                        <span id="modal-album-playtime">0h 0m</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3>Tracks</h3>
+                    <ul id="modal-album-tracks" class="stats-list compact-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
     <script src="app.js"></script>
 </body>
 </html>
