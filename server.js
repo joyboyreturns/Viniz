@@ -426,6 +426,11 @@ app.get('/api/cover-art/:id', (req, res) => {
         if (proxyRes.statusCode !== 200) {
             return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
         }
+        if (proxyRes.headers['content-type']) {
+            res.set('Content-Type', proxyRes.headers['content-type']);
+        } else {
+            res.set('Content-Type', 'image/jpeg');
+        }
         res.set('Cache-Control', 'public, max-age=86400');
         proxyRes.pipe(res);
     }).on('error', (err) => {

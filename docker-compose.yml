@@ -7,8 +7,8 @@ services:
       - "4096:4096"
     volumes:
       - ./data:/app/data
-      # Replace with the path to your Navidrome database file
-      - /mnt/cloud_storage/nextcloud/navidrome_data/navidrome.db:/app/navidrome/navidrome.db:ro
+      # Replace with the path to your Navidrome data directory
+      - /mnt/cloud_storage/nextcloud/navidrome_data:/app/navidrome:ro
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
