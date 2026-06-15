@@ -120,6 +120,25 @@ function localDateStr(offsetSeconds, ts) {
     return d.toISOString().split('T')[0];
 }
 
+function backfillAlbumIds() {
+    if (!naviDb) return;
+    db.all(`SELECT id, track_name, artist_name FROM history WHERE album_id IS NULL OR album_id = ''`, [], (err, rows) => {
+        if (err || !rows.length) return;
+        const stmt = db.prepare(`UPDATE history SET album_id = ?, track_id = ?, artist_id = ?, duration = ?, genre = ? WHERE id = ?`);
+        let count = 0;
+        rows.forEach(row => {
+            try {
+                const match = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file WHERE title = ? AND artist = ?`).get(row.track_name, row.artist_name);
+                if (match) {
+                    stmt.run(match.album_id || '', match.track_id || '', match.artist_id || '', match.duration || '', match.genre || '', row.id, () => count++);
+                }
+            } catch (e) {}
+        });
+        stmt.finalize();
+        if (count > 0) console.log(`Backfilled ${count} album_ids`);
+    });
+}
+
 app.get('/api/stats/summary', (req, res) => {
     const condition = getTimeCondition(req.query.filter);
     db.get(`SELECT 
@@ -366,6 +385,29 @@ app.post('/api/settings', (req, res) => {
     utcOffset = utc_offset;
     db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('utc_offset', ?)`, [String(utc_offset)]);
     res.json({ status: 'ok', utc_offset: utcOffset });
+});
+
+app.post('/api/backfill-cover-art', (req, res) => {
+    if (!naviDb) return res.json({ status: 'ok', backfilled: 0, message: 'Navidrome DB not available' });
+    db.all(`SELECT id, track_name, artist_name FROM history WHERE album_id IS NULL OR album_id = ''`, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!rows.length) return res.json({ status: 'ok', backfilled: 0 });
+        const stmt = db.prepare(`UPDATE history SET album_id = ?, track_id = ?, artist_id = ?, duration = ?, genre = ? WHERE id = ?`);
+        let backfilled = 0, failed = 0;
+        rows.forEach(row => {
+            try {
+                const match = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file WHERE title = ? AND artist = ?`).get(row.track_name, row.artist_name);
+                if (match) {
+                    stmt.run(match.album_id || '', match.track_id || '', match.artist_id || '', match.duration || '', match.genre || '', row.id);
+                    backfilled++;
+                } else {
+                    failed++;
+                }
+            } catch (e) { failed++; }
+        });
+        stmt.finalize();
+        res.json({ status: 'ok', backfilled, failed, total: rows.length });
+    });
 });
 
 const PLACEHOLDER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect fill="#333" width="300" height="300"/><circle fill="#555" cx="150" cy="135" r="40"/><rect fill="#555" x="110" y="175" width="80" height="90" rx="6"/></svg>';
@@ -661,4 +703,5 @@ app.get('/api/stats/library', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Viniz server running on port ${PORT}`);
+    backfillAlbumIds();
 });

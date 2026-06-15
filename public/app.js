@@ -286,7 +286,7 @@ function renderListItems(dataList, listElId, type) {
         }
         
         li.innerHTML = `
-            <img src="${imgUrl}" class="cover-art" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+            <img src="${imgUrl}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
             <div class="item-info">
                 <span class="item-name">${escapeHtml(title)}</span>
                 <span class="item-sub">${escapeHtml(sub)}</span>
@@ -370,7 +370,7 @@ async function loadTimeline(reset) {
 
             entry.innerHTML = `
                 <div class="timeline-dot ${isPlay ? 'play' : 'view'}"></div>
-                <img src="${imgUrl}" class="cover-art timeline-cover" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <img src="${imgUrl}" class="cover-art timeline-cover" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                 <div class="timeline-info">
                     <span class="timeline-track">${escapeHtml(item.track_name)}</span>
                     <span class="timeline-artist">${escapeHtml(item.artist_name)} • ${escapeHtml(item.album_name)}</span>
@@ -846,21 +846,21 @@ async function loadLibrary(page) {
 
             if (libraryTab === 'artists') {
                 card.innerHTML = `
-                    <img src="${getCoverArtUrl(item.artist_id)}" class="library-card-img round" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    <img src="${getCoverArtUrl(item.artist_id)}" class="library-card-img round" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.artist_name)}</span>
                     <span class="library-card-sub">${item.plays} plays</span>
                 `;
                 card.addEventListener('click', () => openArtistModal(item.artist_name, 'all'));
             } else if (libraryTab === 'albums') {
                 card.innerHTML = `
-                    <img src="${getCoverArtUrl(item.album_id)}" class="library-card-img" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    <img src="${getCoverArtUrl(item.album_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.album_name)}</span>
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${item.plays} plays</span>
                 `;
                 card.addEventListener('click', () => openAlbumModal(item.album_name));
             } else {
                 card.innerHTML = `
-                    <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="library-card-img" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                    <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.track_name)}</span>
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${escapeHtml(item.album_name)}</span>
                 `;
@@ -967,7 +967,7 @@ async function openArtistModal(artistName, filter) {
         data.top_tracks.forEach(item => {
             const li = document.createElement('li');
             li.innerHTML = `
-                <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="cover-art" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                 <div class="item-info">
                     <span class="item-name">${escapeHtml(item.track_name)}</span>
                     <span class="item-sub">${item.views} views</span>
@@ -983,7 +983,7 @@ async function openArtistModal(artistName, filter) {
         data.top_albums.forEach(item => {
             const li = document.createElement('li');
             li.innerHTML = `
-                <img src="${getCoverArtUrl(item.album_id)}" class="cover-art" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <img src="${getCoverArtUrl(item.album_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                 <div class="item-info">
                     <span class="item-name">${escapeHtml(item.album_name)}</span>
                     <span class="item-sub">${item.plays} plays</span>
