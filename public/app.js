@@ -146,15 +146,7 @@ document.querySelectorAll('.tab-panel').forEach(p => {
 
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        tabBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        Object.values(tabPanels).forEach(p => p.classList.remove('active'));
-        const tab = btn.dataset.tab;
-        tabPanels[tab].classList.add('active');
-        if (tab === 'insights') loadInsights();
-        if (tab === 'timeline') loadTimeline();
-        if (tab === 'history') loadHistoryTable();
-        if (tab === 'library') loadLibrary();
+        switchTab(btn.dataset.tab);
     });
 });
 
@@ -233,6 +225,9 @@ document.getElementById('global-time-toggler').addEventListener('change', (e) =>
     if (document.getElementById('tab-insights').classList.contains('active')) {
         loadInsights();
     }
+    if (document.getElementById('tab-discover').classList.contains('active')) {
+        loadDiscoverTab();
+    }
     if (searchInput.value.trim()) performSearch();
 });
 
@@ -296,6 +291,39 @@ function renderListItems(dataList, listElId, type) {
                 <span class="item-views">${item.plays} plays</span>
             </div>
         `;
+        
+        // Add play button
+        if (type === 'tracks') {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'inline-play-btn';
+            playBtn.textContent = '▶';
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playTrackFromListing(item.track_name, item.artist_name, item.album_name, imgUrl, item.playtime, item.track_id, item.album_id);
+            });
+            li.appendChild(playBtn);
+        }
+        if (type === 'albums' && item.album_id) {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'inline-play-btn';
+            playBtn.textContent = '▶';
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playAlbumFromCover(item.album_id, item.album_name);
+            });
+            li.appendChild(playBtn);
+        }
+        if (type === 'artists' && item.artist_id) {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'inline-play-btn';
+            playBtn.textContent = '▶';
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playArtistTopTracks(item.artist_id, item.artist_name);
+            });
+            li.appendChild(playBtn);
+        }
+        
         listEl.appendChild(li);
     });
 }
@@ -387,7 +415,7 @@ async function loadTimeline(reset) {
     }
 
     loader.classList.add('hidden');
-    timingLoading = false;
+    timelineLoading = false;
 }
 
 const timelineFeed = document.getElementById('timeline-feed');
@@ -851,6 +879,21 @@ async function loadLibrary(page) {
                     <span class="library-card-sub">${item.plays} plays</span>
                 `;
                 card.addEventListener('click', () => openArtistModal(item.artist_name, 'all'));
+                if (item.artist_id) {
+                    const playBtn = document.createElement('button');
+                    playBtn.className = 'inline-play-btn';
+                    playBtn.textContent = '▶';
+                    playBtn.style.opacity = '1';
+                    playBtn.style.position = 'absolute';
+                    playBtn.style.bottom = '8px';
+                    playBtn.style.right = '8px';
+                    playBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        playArtistTopTracks(item.artist_id, item.artist_name);
+                    });
+                    card.style.position = 'relative';
+                    card.appendChild(playBtn);
+                }
             } else if (libraryTab === 'albums') {
                 card.innerHTML = `
                     <img src="${getCoverArtUrl(item.album_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
@@ -858,12 +901,42 @@ async function loadLibrary(page) {
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${item.plays} plays</span>
                 `;
                 card.addEventListener('click', () => openAlbumModal(item.album_name));
+                if (item.album_id) {
+                    const playBtn = document.createElement('button');
+                    playBtn.className = 'inline-play-btn';
+                    playBtn.textContent = '▶';
+                    playBtn.style.opacity = '1';
+                    playBtn.style.position = 'absolute';
+                    playBtn.style.bottom = '8px';
+                    playBtn.style.right = '8px';
+                    playBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        playAlbumFromCover(item.album_id, item.album_name);
+                    });
+                    card.style.position = 'relative';
+                    card.appendChild(playBtn);
+                }
             } else {
                 card.innerHTML = `
                     <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.track_name)}</span>
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${escapeHtml(item.album_name)}</span>
                 `;
+                if (item.track_id) {
+                    const playBtn = document.createElement('button');
+                    playBtn.className = 'inline-play-btn';
+                    playBtn.textContent = '▶';
+                    playBtn.style.opacity = '1';
+                    playBtn.style.position = 'absolute';
+                    playBtn.style.bottom = '8px';
+                    playBtn.style.right = '8px';
+                    playBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        playTrackFromListing(item.track_name, item.artist_name, item.album_name, getCoverArtUrl(item.album_id || item.track_id), item.playtime, item.track_id, item.album_id);
+                    });
+                    card.style.position = 'relative';
+                    card.appendChild(playBtn);
+                }
             }
             grid.appendChild(card);
         });
@@ -1168,6 +1241,11 @@ saveSettingsBtn.addEventListener('click', async () => {
 
 // ── Initial Load ──
 initTheme();
+initPlayer();
+registerSW();
+initMobileNav();
+initSwipeNavigation();
+initScrollReveal();
 fetchSummary(currentTimeFilter);
 fetchChartData();
 fetchList('tracks', currentTimeFilter);
@@ -1176,3 +1254,354 @@ fetchList('artists', currentTimeFilter);
 fetchNowPlaying();
 nowPlayingInterval = setInterval(fetchNowPlaying, 15000);
 loadTimeline(true);
+
+// Sync expanded player info with mini player
+setInterval(() => {
+  const p = player;
+  if (!p || !p.currentTrack || !p.isPlaying) return;
+  const track = p.currentTrack;
+  document.getElementById('player-track-name-expanded') && (
+    document.getElementById('player-track-name-expanded').textContent = track.track_name || ''
+  );
+  document.getElementById('player-artist-name-expanded') && (
+    document.getElementById('player-artist-name-expanded').textContent = `${track.artist_name || ''} • ${track.album_name || ''}`
+  );
+  document.getElementById('player-current-time-expanded') && (
+    document.getElementById('player-current-time-expanded').textContent = p._formatTime(p.audio.currentTime)
+  );
+  document.getElementById('player-duration-expanded') && (
+    document.getElementById('player-duration-expanded').textContent = p._formatTime(track.duration || p.audio.duration)
+  );
+  const fillExp = document.getElementById('player-progress-fill-expanded');
+  if (fillExp) {
+    const pct = p.audio.duration ? (p.audio.currentTime / p.audio.duration) * 100 : 0;
+    fillExp.style.width = pct + '%';
+  }
+  const coverExp = document.getElementById('player-cover-expanded');
+  if (coverExp && coverExp.src !== document.getElementById('player-cover')?.src) {
+    coverExp.src = document.getElementById('player-cover')?.src || '';
+  }
+}, 500);
+
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+}
+
+function initScrollReveal() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.scroll-reveal').forEach(el => observer.observe(el));
+}
+
+// ── Mobile Bottom Nav ──
+function initMobileNav() {
+  document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.mtab;
+      switchTab(tab);
+    });
+  });
+}
+
+// ── Swipe Navigation ──
+function initSwipeNavigation() {
+  let touchStartX = 0, touchStartY = 0;
+  const tabOrder = ['dashboard', 'discover', 'insights', 'library', 'year'];
+  
+  document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || 
+        e.target.closest('.modal-overlay') || e.target.closest('#player-bar')) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!touchStartX) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) < Math.abs(dy) || Math.abs(dx) < 60) { touchStartX = 0; return; }
+    
+    const current = tabOrder.findIndex(t => document.getElementById(`tab-${t}`).classList.contains('active'));
+    if (dx < -60 && current < tabOrder.length - 1) {
+      switchTab(tabOrder[current + 1]);
+    } else if (dx > 60 && current > 0) {
+      switchTab(tabOrder[current - 1]);
+    }
+    touchStartX = 0;
+  }, { passive: true });
+}
+
+function switchTab(tabName) {
+  // Desktop tabs
+  tabBtns.forEach(b => {
+    b.classList.remove('active');
+    if (b.dataset.tab === tabName) b.classList.add('active');
+  });
+  
+  // Mobile nav
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => {
+    b.classList.remove('active');
+    if (b.dataset.mtab === tabName) b.classList.add('active');
+  });
+  
+  // Panels
+  Object.values(tabPanels).forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(`tab-${tabName}`);
+  if (panel) panel.classList.add('active');
+  
+  // Close search if open
+  closeSearch();
+  
+  // Load tab content
+  if (tabName === 'insights') loadInsights();
+  if (tabName === 'timeline') loadTimeline(true);
+  if (tabName === 'history') loadHistoryTable();
+  if (tabName === 'library') loadLibrary();
+  if (tabName === 'discover') loadDiscoverTab();
+  if (tabName === 'year') loadYearTab();
+}
+
+// ── Discover Tab ──
+async function loadDiscoverTab() {
+  loadRecommendations();
+  loadDiscoverTracks();
+  loadAtThisHour();
+}
+
+async function loadRecommendations() {
+  const grid = document.getElementById('for-you-grid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/recommendations/for-you');
+    const data = await res.json();
+    if (data.length === 0) {
+      grid.innerHTML = '<div class="empty-state">Listen to more music to get recommendations!</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    data.forEach(artist => {
+      const card = document.createElement('div');
+      card.className = 'discover-card';
+      card.innerHTML = `
+        <img src="${getCoverArtUrl(artist.artist_id)}" class="discover-card-img round" onerror="this.style.display='none'">
+        <div class="discover-card-info">
+          <span class="discover-card-name">${escapeHtml(artist.artist_name)}</span>
+          <span class="discover-card-sub">${escapeHtml(artist.reason || '')}</span>
+        </div>
+        <button class="discover-card-play" title="Play top tracks">▶</button>
+      `;
+      card.addEventListener('click', () => openArtistModal(artist.artist_name, 'all'));
+      card.querySelector('.discover-card-play').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (artist.artist_id) playArtistTopTracks(artist.artist_id, artist.artist_name);
+      });
+      grid.appendChild(card);
+    });
+  } catch (e) { console.error('Recommendations error:', e); }
+}
+
+async function loadDiscoverTracks() {
+  const grid = document.getElementById('discover-tracks-grid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/recommendations/discover');
+    const data = await res.json();
+    if (data.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No undiscovered gems found. Keep listening!</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    data.forEach(track => {
+      const card = document.createElement('div');
+      card.className = 'discover-card';
+      card.innerHTML = `
+        <img src="${track.cover_url || getCoverArtUrl(track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
+        <div class="discover-card-info">
+          <span class="discover-card-name">${escapeHtml(track.track_name)}</span>
+          <span class="discover-card-sub">${escapeHtml(track.artist_name)} • ${escapeHtml(track.album_name)}</span>
+        </div>
+        <button class="discover-card-play" title="Play">▶</button>
+      `;
+      card.querySelector('.discover-card-play').addEventListener('click', (e) => {
+        e.stopPropagation();
+        playTrackFromListing(track.track_name, track.artist_name, track.album_name, track.cover_url, track.duration, track.track_id, track.album_id);
+      });
+      grid.appendChild(card);
+    });
+  } catch (e) { console.error('Discover error:', e); }
+}
+
+async function loadAtThisHour() {
+  const grid = document.getElementById('at-hour-grid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/recommendations/at-this-hour');
+    const data = await res.json();
+    if (!data.tracks || data.tracks.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No listening data for this hour yet.</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    data.tracks.forEach(track => {
+      const card = document.createElement('div');
+      card.className = 'discover-card';
+      card.innerHTML = `
+        <img src="${getCoverArtUrl(track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
+        <div class="discover-card-info">
+          <span class="discover-card-name">${escapeHtml(track.track_name)}</span>
+          <span class="discover-card-sub">${escapeHtml(track.artist_name)}</span>
+          <span class="discover-card-meta">${track.play_count} plays at this hour</span>
+        </div>
+        <button class="discover-card-play" title="Play">▶</button>
+      `;
+      card.querySelector('.discover-card-play').addEventListener('click', (e) => {
+        e.stopPropagation();
+        playTrackFromListing(track.track_name, track.artist_name, track.album_name, getCoverArtUrl(track.album_id || track.track_id), 0, track.track_id, track.album_id);
+      });
+      grid.appendChild(card);
+    });
+  } catch (e) { console.error('At hour error:', e); }
+}
+
+// ── Year in Review Tab ──
+let currentYear = new Date().getFullYear();
+
+async function loadYearTab() {
+  try {
+    const yearsRes = await fetch('/api/stats/years');
+    const years = await yearsRes.json();
+    const selector = document.getElementById('year-selector');
+    if (selector) {
+      selector.innerHTML = '';
+      years.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === currentYear) opt.selected = true;
+        selector.appendChild(opt);
+      });
+      if (years.length === 0) {
+        selector.innerHTML = '<option value="">No data yet</option>';
+      }
+    }
+    if (years.length > 0) {
+      currentYear = years[0];
+      loadYearlyStats(currentYear);
+    }
+  } catch (e) { console.error('Years error:', e); }
+}
+
+document.getElementById('year-selector')?.addEventListener('change', (e) => {
+  currentYear = parseInt(e.target.value);
+  loadYearlyStats(currentYear);
+});
+
+async function loadYearlyStats(year) {
+  const container = document.getElementById('yearly-content');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><span>Crunching your stats...</span></div>';
+  
+  try {
+    const res = await fetch(`/api/stats/yearly/${year}`);
+    const data = await res.json();
+    const s = data.summary;
+    
+    const totalMinutes = Math.round((s.total_playtime || 0) / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    
+    container.innerHTML = `
+      <div class="yearly-hero">
+        <h2>${year}</h2>
+        <p class="yearly-subtitle">Your year in music</p>
+      </div>
+      
+      <div class="yearly-stats-grid">
+        <div class="yearly-stat-card">
+          <div class="yearly-stat-value">${(s.total_plays || 0).toLocaleString()}</div>
+          <div class="yearly-stat-label">Total Plays</div>
+        </div>
+        <div class="yearly-stat-card">
+          <div class="yearly-stat-value">${hours}h ${mins}m</div>
+          <div class="yearly-stat-label">Total Playtime</div>
+        </div>
+        <div class="yearly-stat-card">
+          <div class="yearly-stat-value">${(s.unique_artists || 0).toLocaleString()}</div>
+          <div class="yearly-stat-label">Artists Explored</div>
+        </div>
+        <div class="yearly-stat-card">
+          <div class="yearly-stat-value">${(s.active_days || 0).toLocaleString()}</div>
+          <div class="yearly-stat-label">Active Days</div>
+        </div>
+      </div>
+      
+      ${data.peak_month.month ? `
+        <div class="yearly-stat-card" style="text-align:center;margin-bottom:1.5rem;padding:1.25rem">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim)">Peak Month</div>
+          <div style="font-size:1.4rem;font-weight:700;margin-top:0.25rem">${data.peak_month.month}</div>
+          <div style="color:var(--text-dim);font-size:0.8rem">${data.peak_month.plays} plays • ${formatPlaytime(data.peak_month.playtime)}</div>
+        </div>
+      ` : ''}
+      
+      ${data.peak_day.day ? `
+        <div class="yearly-stat-card" style="text-align:center;margin-bottom:1.5rem;padding:1.25rem">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim)">Peak Day</div>
+          <div style="font-size:1.2rem;font-weight:700;margin-top:0.25rem">${data.peak_day.day}</div>
+          <div style="color:var(--text-dim);font-size:0.8rem">${data.peak_day.plays} plays</div>
+        </div>
+      ` : ''}
+      
+      <div class="yearly-section">
+        <h3>Top Artists</h3>
+        ${(data.top_artists || []).map((a, i) => `
+          <div class="yearly-rank" onclick="openArtistModal('${escapeHtml(a.artist_name).replace(/'/g, "\\'")}', '${year}')">
+            <span class="yearly-rank-pos">${i + 1}</span>
+            <img src="${getCoverArtUrl(a.artist_id)}" class="yearly-rank-cover round" onerror="this.style.display='none'">
+            <div class="yearly-rank-info">
+              <span class="yearly-rank-name">${escapeHtml(a.artist_name)}</span>
+            </div>
+            <span class="yearly-rank-stat">${a.plays} plays • ${formatPlaytime(a.playtime)}</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div class="yearly-section">
+        <h3>Top Songs</h3>
+        ${(data.top_tracks || []).map((t, i) => `
+          <div class="yearly-rank" onclick="playTrackFromListing('${escapeHtml(t.track_name).replace(/'/g, "\\'")}', '${escapeHtml(t.artist_name).replace(/'/g, "\\'")}', '', '${getCoverArtUrl(t.album_id || t.track_id)}', 0, '${t.track_id || ''}', '${t.album_id || ''}')">
+            <span class="yearly-rank-pos">${i + 1}</span>
+            <img src="${getCoverArtUrl(t.album_id || t.track_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
+            <div class="yearly-rank-info">
+              <span class="yearly-rank-name">${escapeHtml(t.track_name)}</span>
+              <span class="yearly-rank-sub">${escapeHtml(t.artist_name)}</span>
+            </div>
+            <span class="yearly-rank-stat">${t.plays} plays • ${formatPlaytime(t.playtime)}</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div class="yearly-section">
+        <h3>Top Albums</h3>
+        ${(data.top_albums || []).map((a, i) => `
+          <div class="yearly-rank" onclick="openAlbumModal('${escapeHtml(a.album_name).replace(/'/g, "\\'")}')">
+            <span class="yearly-rank-pos">${i + 1}</span>
+            <img src="${getCoverArtUrl(a.album_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
+            <div class="yearly-rank-info">
+              <span class="yearly-rank-name">${escapeHtml(a.album_name)}</span>
+              <span class="yearly-rank-sub">${escapeHtml(a.artist_name)}</span>
+            </div>
+            <span class="yearly-rank-stat">${a.plays} plays • ${formatPlaytime(a.playtime)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    console.error('Yearly error:', e);
+    container.innerHTML = '<div class="empty-state">Failed to load yearly stats.</div>';
+  }
+}

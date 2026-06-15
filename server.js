@@ -706,7 +706,182 @@ app.get('/api/stats/library', (req, res) => {
     }
 });
 
+// ── Player / Streaming ──
+
+app.get('/api/ping', (req, res) => { res.json({ msg: 'pong from new code' }); });
+
+app.get('/api/stats/years', (req, res) => {
+    db.all(`SELECT DISTINCT strftime('%Y', timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as year
+            FROM history ORDER BY year DESC`, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows.map(r => parseInt(r.year)));
+    });
+});
+
+app.get('/api/track/lookup', (req, res) => {
+    const { track, artist } = req.query;
+    if (!track || !artist) return res.status(400).json({ error: 'track and artist required' });
+    db.get('SELECT track_id, album_id, artist_id, duration, genre FROM history WHERE track_name = ? AND artist_name = ? AND track_id != \'\' ORDER BY id DESC LIMIT 1', [track, artist], (err, row) => {
+        if (row && row.track_id) return res.json({ ...row, stream_url: '/api/stream/' + row.track_id, cover_url: '/api/cover-art/' + (row.album_id || row.track_id) });
+        if (!naviDb) return res.json({ track_id: '', stream_url: '', cover_url: '' });
+        try {
+            const match = naviDb.prepare('SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file WHERE title = ? AND artist = ?').get(track, artist);
+            if (match) return res.json({ ...match, stream_url: '/api/stream/' + match.track_id, cover_url: '/api/cover-art/' + (match.album_id || match.track_id) });
+        } catch (e) {}
+        res.json({ track_id: '', stream_url: '', cover_url: '' });
+    });
+});
+
+app.get('/api/stream/:id', (req, res) => {
+    if (!req.params.id) return res.status(400).end();
+    const navHost = process.env.NAVIDROME_HOST || 'localhost';
+    const navPort = process.env.NAVIDROME_PORT || '4533';
+    const navUser = process.env.NAVIDROME_USER || '';
+    const navPass = process.env.NAVIDROME_PASS || '';
+    const streamUrl = 'http://' + navHost + ':' + navPort + '/rest/stream?id=' + req.params.id + '&u=' + navUser + '&p=' + navPass + '&v=1.12.0&c=Viniz&format=raw';
+    const options = req.headers.range ? { headers: { 'Range': req.headers.range } } : {};
+    http.get(streamUrl, options, (proxyRes) => {
+        if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+            http.get(proxyRes.headers.location, (redirectRes) => {
+                res.status(redirectRes.statusCode);
+                if (redirectRes.headers['content-type']) res.set('Content-Type', redirectRes.headers['content-type']);
+                redirectRes.pipe(res);
+            }).on('error', () => res.status(502).end());
+            return;
+        }
+        res.status(proxyRes.statusCode);
+        if (proxyRes.headers['content-type']) res.set('Content-Type', proxyRes.headers['content-type']);
+        proxyRes.pipe(res);
+    }).on('error', () => res.status(502).end());
+});
+
+app.get('/api/player/album-tracks/:albumId', (req, res) => {
+    if (!naviDb) return res.json({ tracks: [] });
+    try {
+        const tracks = naviDb.prepare('SELECT id, title, artist, album, track_number, duration, album_id, artist_id FROM media_file WHERE album_id = ? ORDER BY track_number ASC').all(req.params.albumId);
+        res.json(tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, track_number: t.track_number, duration: t.duration, album_id: t.album_id, artist_id: t.artist_id, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })));
+    } catch (e) { res.json({ tracks: [] }); }
+});
+
+app.get('/api/player/artist-top-tracks/:artistId', (req, res) => {
+    if (!naviDb) return res.json({ tracks: [] });
+    try {
+        const tracks = naviDb.prepare('SELECT id, title, artist, album, album_id, artist_id, duration FROM media_file WHERE artist_id = ? ORDER BY play_count DESC LIMIT 20').all(req.params.artistId);
+        res.json(tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, album_id: t.album_id, artist_id: t.artist_id, duration: t.duration, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })));
+    } catch (e) { res.json({ tracks: [] }); }
+});
+
+app.get('/api/recommendations/for-you', (req, res) => {
+    db.all('SELECT genre, COUNT(*) as cnt FROM history WHERE genre != \'\' AND genre IS NOT NULL GROUP BY genre ORDER BY cnt DESC LIMIT 5', [], (err, topGenres) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (topGenres.length === 0) return res.json([]);
+        const genres = topGenres.map(g => g.genre);
+        db.all('SELECT DISTINCT artist_name FROM history', [], (err, listenedArtists) => {
+            if (err) return res.status(500).json({ error: err.message });
+            const placeholders = genres.map(() => '?').join(',');
+            db.all('SELECT DISTINCT artist_name, MAX(artist_id) as artist_id, genre, COUNT(*) as play_count FROM history WHERE genre IN (' + placeholders + ') AND genre != \'\' GROUP BY artist_name ORDER BY play_count DESC LIMIT 10', genres, (err, rows) => {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json(rows.map(r => ({ artist_name: r.artist_name, artist_id: r.artist_id, genre: r.genre, reason: 'Genre: ' + r.genre })));
+            });
+        });
+    });
+});
+
+app.get('/api/recommendations/discover', (req, res) => {
+    if (!naviDb) return res.json([]);
+    db.all('SELECT DISTINCT artist_name FROM history ORDER BY id DESC LIMIT 50', [], (err, artists) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (artists.length === 0) return res.json([]);
+        db.all('SELECT DISTINCT track_name, artist_name FROM history', [], (err, listened) => {
+            if (err) return res.status(500).json({ error: err.message });
+            const listenedSet = new Set(listened.map(l => l.track_name + '||' + l.artist_name));
+            const results = [];
+            const seen = new Set();
+            try {
+                for (const a of artists) {
+                    if (results.length >= 15) break;
+                    const unplayed = naviDb.prepare('SELECT id, title, artist, album, album_id, artist_id, duration FROM media_file WHERE artist = ? ORDER BY RANDOM() LIMIT 5').all(a.artist_name);
+                    for (const t of unplayed) {
+                        if (results.length >= 15) break;
+                        const key = t.title + '||' + t.artist;
+                        if (!listenedSet.has(key) && !seen.has(key)) {
+                            seen.add(key);
+                            results.push({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, album_id: t.album_id, artist_id: t.artist_id, duration: t.duration, cover_url: '/api/cover-art/' + (t.album_id || t.id), stream_url: '/api/stream/' + t.id });
+                        }
+                    }
+                }
+                res.json(results);
+            } catch (e) { res.json([]); }
+        });
+    });
+});
+
+app.get('/api/recommendations/similar/:artist', (req, res) => {
+    if (!naviDb) return res.json([]);
+    try {
+        const genres = naviDb.prepare('SELECT DISTINCT genre FROM media_file WHERE artist = ? AND genre != \'\'').all(req.params.artist).map(g => g.genre);
+        if (genres.length === 0) return res.json([]);
+        const conditions = genres.map(() => 'genre LIKE ?').join(' OR ');
+        const params = genres.map(g => '%' + g + '%');
+        params.push(req.params.artist);
+        const similar = naviDb.prepare('SELECT DISTINCT artist, artist_id, genre FROM media_file WHERE (' + conditions + ') AND artist != ? GROUP BY artist ORDER BY COUNT(*) DESC LIMIT 8').all(...params);
+        res.json(similar.map(s => ({ artist_name: s.artist, artist_id: s.artist_id, genre: s.genre })));
+    } catch (e) { res.json([]); }
+});
+
+app.get('/api/recommendations/at-this-hour', (req, res) => {
+    const localHour = new Date(Date.now() + utcOffset * 3600 * 1000).getUTCHours();
+    db.all('SELECT track_name, artist_name, album_name, MAX(track_id) as track_id, MAX(album_id) as album_id, COUNT(*) as play_count FROM history WHERE event_type=\'play\' AND CAST(strftime(\'%H\', timestamp + ' + Math.round(utcOffset * 3600) + ', \'unixepoch\') AS INTEGER) = ? GROUP BY track_name, artist_name ORDER BY play_count DESC LIMIT 10', [localHour], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ hour: localHour, tracks: rows });
+    });
+});
+
+app.get('/api/stats/yearly/:year', (req, res) => {
+    const year = parseInt(req.params.year);
+    if (!year) return res.status(400).json({ error: 'year required' });
+    const startTs = Math.floor(new Date(year + '-01-01').getTime() / 1000);
+    const endTs = Math.floor(new Date((year + 1) + '-01-01').getTime() / 1000);
+    const cond = 'timestamp >= ' + startTs + ' AND timestamp < ' + endTs;
+    const uo = Math.round(utcOffset * 3600);
+    db.get('SELECT SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as total_playtime, SUM(CASE WHEN event_type=\'play\' THEN 1 ELSE 0 END) as total_plays, COUNT(DISTINCT track_name) as unique_tracks, COUNT(DISTINCT artist_name) as unique_artists, COUNT(DISTINCT album_name) as unique_albums, COUNT(DISTINCT date(timestamp + ' + uo + ', \'unixepoch\')) as active_days FROM history WHERE ' + cond, [], (err, summary) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.all('SELECT artist_name, MAX(artist_id) as artist_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' AND artist_name != \'Unknown\' GROUP BY artist_name ORDER BY playtime DESC LIMIT 5', [], (err, topArtists) => {
+            if (err) return res.status(500).json({ error: err.message });
+            db.all('SELECT track_name, artist_name, MAX(track_id) as track_id, MAX(album_id) as album_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' GROUP BY track_name, artist_name ORDER BY playtime DESC LIMIT 5', [], (err, topTracks) => {
+                if (err) return res.status(500).json({ error: err.message });
+                db.all('SELECT album_name, artist_name, MAX(album_id) as album_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' AND album_name != \'Unknown\' GROUP BY album_name, artist_name ORDER BY playtime DESC LIMIT 5', [], (err, topAlbums) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    db.all('SELECT strftime(\'%Y-%m\', timestamp + ' + uo + ', \'unixepoch\') as month, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' GROUP BY month ORDER BY month ASC', [], (err, monthly) => {
+                        if (err) return res.status(500).json({ error: err.message });
+                        let peakMonth = { month: '', plays: 0 };
+                        monthly.forEach(m => { if (m.plays > peakMonth.plays) peakMonth = m; });
+                        db.get('SELECT date(timestamp + ' + uo + ', \'unixepoch\') as day, COUNT(*) as plays FROM history WHERE ' + cond + ' AND event_type=\'play\' GROUP BY day ORDER BY plays DESC LIMIT 1', [], (err, peakDay) => {
+                            res.json({ year, summary: summary || {}, top_artists: topArtists, top_tracks: topTracks, top_albums: topAlbums, monthly, peak_month: peakMonth, peak_day: peakDay || {} });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+app.get('/api/stats/mood-calendar', (req, res) => {
+    const days = parseInt(req.query.days) || 90;
+    db.all('SELECT date(timestamp + ' + Math.round(utcOffset * 3600) + ', \'unixepoch\') as day, genre, COUNT(*) as plays FROM history WHERE timestamp >= strftime(\'%s\', \'now\', \'-' + days + ' days\') AND genre != \'\' GROUP BY day, genre ORDER BY day ASC', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const moodMap = {};
+        rows.forEach(r => { if (!moodMap[r.day]) moodMap[r.day] = {}; moodMap[r.day][r.genre] = (moodMap[r.day][r.genre] || 0) + r.plays; });
+        const result = Object.entries(moodMap).map(([day, genres]) => {
+            let topGenre = '', topCount = 0;
+            Object.entries(genres).forEach(([genre, count]) => { if (count > topCount) { topGenre = genre; topCount = count; } });
+            return { day, genre: topGenre, plays: topCount };
+        });
+        res.json(result);
+    });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Viniz server running on port ${PORT}`);
+    console.log('Viniz server running on port ' + PORT);
     backfillAlbumIds();
 });
