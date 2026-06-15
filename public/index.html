@@ -19,21 +19,22 @@
                 <div class="header-actions">
                     <button id="export-btn" class="action-btn">Export</button>
                     <button id="import-btn" class="action-btn">Import</button>
+                    <button id="theme-toggle" class="action-btn" onclick="toggleTheme()">Loading...</button>
+                    <select id="global-time-toggler" class="time-toggler">
+                        <option value="today">Today</option>
+                        <option value="7d">7 Days</option>
+                        <option value="14d">14 Days</option>
+                        <option value="1m">1 Month</option>
+                        <option value="3m">3 Months</option>
+                        <option value="6m">6 Months</option>
+                        <option value="all" selected>All Time</option>
+                    </select>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
             </div>
             
             <div class="search-container">
                 <input type="text" id="search-input" placeholder="Search artists, songs, albums...">
-                <select class="time-toggler" id="search-time-filter" data-target="search">
-                    <option value="today">Today</option>
-                    <option value="7d">Last 7 Days</option>
-                    <option value="14d">Last 14 Days</option>
-                    <option value="1m">Last 1 Month</option>
-                    <option value="3m">Last 3 Months</option>
-                    <option value="6m">Last 6 Months</option>
-                    <option value="all" selected>All Time</option>
-                </select>
                 <button id="close-search-btn" class="hidden">Cancel</button>
             </div>
 
@@ -86,15 +87,6 @@
                             <button class="chart-toggle-btn active" data-mode="views">Views</button>
                             <button class="chart-toggle-btn" data-mode="plays">Plays</button>
                         </div>
-                        <select class="time-toggler" data-target="summary">
-                            <option value="today" selected>Today</option>
-                            <option value="7d">7 Days</option>
-                            <option value="14d">14 Days</option>
-                            <option value="1m">1 Month</option>
-                            <option value="3m">3 Months</option>
-                            <option value="6m">6 Months</option>
-                            <option value="all">All Time</option>
-                        </select>
                     </div>
                 </div>
                 <div class="summary-body">
@@ -124,45 +116,18 @@
                 <div class="list-container" id="top-tracks-container">
                     <div class="list-header">
                         <h2>Top Songs</h2>
-                        <select class="time-toggler" data-target="top-tracks">
-                            <option value="today">Today</option>
-                            <option value="7d">7 Days</option>
-                            <option value="14d">14 Days</option>
-                            <option value="1m">1 Month</option>
-                            <option value="3m">3 Months</option>
-                            <option value="6m">6 Months</option>
-                            <option value="all">All Time</option>
-                        </select>
                     </div>
                     <ul id="top-tracks-list" class="stats-list"></ul>
                 </div>
                 <div class="list-container" id="top-albums-container">
                     <div class="list-header">
                         <h2>Top Albums</h2>
-                        <select class="time-toggler" data-target="top-albums">
-                            <option value="today">Today</option>
-                            <option value="7d">7 Days</option>
-                            <option value="14d">14 Days</option>
-                            <option value="1m">1 Month</option>
-                            <option value="3m">3 Months</option>
-                            <option value="6m">6 Months</option>
-                            <option value="all">All Time</option>
-                        </select>
                     </div>
                     <ul id="top-albums-list" class="stats-list"></ul>
                 </div>
                 <div class="list-container" id="top-artists-container">
                     <div class="list-header">
                         <h2>Top Artists</h2>
-                        <select class="time-toggler" data-target="top-artists">
-                            <option value="today">Today</option>
-                            <option value="7d">7 Days</option>
-                            <option value="14d">14 Days</option>
-                            <option value="1m">1 Month</option>
-                            <option value="3m">3 Months</option>
-                            <option value="6m">6 Months</option>
-                            <option value="all">All Time</option>
-                        </select>
                     </div>
                     <ul id="top-artists-list" class="stats-list"></ul>
                 </div>
@@ -187,17 +152,6 @@
             <section class="page-header">
                 <h2>Insights</h2>
                 <p>Deep dive into your listening patterns.</p>
-                <div class="header-controls" style="margin-top:0.5rem">
-                    <select class="time-toggler" data-target="insights">
-                        <option value="7d">7 Days</option>
-                        <option value="14d">14 Days</option>
-                        <option value="1m">1 Month</option>
-                        <option value="3m" selected>3 Months</option>
-                        <option value="6m">6 Months</option>
-                        <option value="1y">1 Year</option>
-                        <option value="all">All Time</option>
-                    </select>
-                </div>
             </section>
 
             <section class="insights-grid">

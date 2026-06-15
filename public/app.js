@@ -56,6 +56,76 @@ function showToast(message, type) {
     }, 3000);
 }
 
+// ── Theme System ──
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = savedTheme || 'light';
+    document.documentElement.setAttribute('data-theme', initialTheme);
+    updateThemeButton();
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeButton();
+    setTimeout(updateChartsForTheme, 50);
+}
+
+function updateThemeButton() {
+    const themeBtn = document.getElementById('theme-toggle');
+    if (!themeBtn) return;
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    themeBtn.textContent = currentTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+}
+
+function getChartColors() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return {
+        grid: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.08)',
+        tick: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+        tickBright: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+        legend: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
+        yTick: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
+    };
+}
+
+function updateChartsForTheme() {
+    const c = getChartColors();
+    if (barChartInstance) {
+        barChartInstance.options.scales.y.grid.color = c.grid;
+        barChartInstance.options.scales.y.ticks.color = c.tickBright;
+        barChartInstance.options.scales.x.ticks.color = c.tickBright;
+        barChartInstance.update();
+    }
+    if (hourlyChartInstance) {
+        hourlyChartInstance.options.scales.y.grid.color = c.grid;
+        hourlyChartInstance.options.scales.y.ticks.color = c.tick;
+        hourlyChartInstance.options.scales.x.ticks.color = c.tick;
+        hourlyChartInstance.update();
+    }
+    if (dayOfWeekChartInstance) {
+        dayOfWeekChartInstance.options.plugins.legend.labels.color = c.legend;
+        dayOfWeekChartInstance.update();
+    }
+    if (growthChartInstance) {
+        growthChartInstance.options.scales.y.grid.color = c.grid;
+        growthChartInstance.options.scales.y.ticks.color = c.tick;
+        growthChartInstance.options.scales.y1.ticks.color = c.tick;
+        growthChartInstance.options.scales.x.ticks.color = c.tick;
+        growthChartInstance.options.plugins.legend.labels.color = c.legend;
+        growthChartInstance.update();
+    }
+    if (genreChartInstance) {
+        genreChartInstance.options.scales.x.grid.color = c.grid;
+        genreChartInstance.options.scales.x.ticks.color = c.tick;
+        genreChartInstance.options.scales.y.ticks.color = c.yTick;
+        genreChartInstance.update();
+    }
+}
+
 // ── Chart Instances ──
 let barChartInstance = null;
 let chartDataCache = [];
@@ -119,6 +189,7 @@ function renderChart() {
     gradient.addColorStop(0, isViews ? '#fa233b' : '#0a84ff');
     gradient.addColorStop(1, isViews ? 'rgba(250,35,59,0.1)' : 'rgba(10,132,255,0.1)');
 
+    const cc = getChartColors();
     barChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -135,8 +206,8 @@ function renderChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)', stepSize: 1, callback: v => Number.isInteger(v) ? v : '' } },
-                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } }
+                y: { beginAtZero: true, grid: { color: cc.grid }, ticks: { color: cc.tickBright, stepSize: 1, callback: v => Number.isInteger(v) ? v : '' } },
+                x: { grid: { display: false }, ticks: { color: cc.tickBright } }
             },
             plugins: { legend: { display: false } }
         }
@@ -150,6 +221,19 @@ document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
         currentChartMode = e.currentTarget.dataset.mode;
         renderChart();
     });
+});
+
+document.getElementById('global-time-toggler').addEventListener('change', (e) => {
+    currentTimeFilter = e.target.value;
+    fetchSummary(currentTimeFilter);
+    fetchChartData();
+    fetchList('tracks', currentTimeFilter);
+    fetchList('albums', currentTimeFilter);
+    fetchList('artists', currentTimeFilter);
+    if (document.getElementById('tab-insights').classList.contains('active')) {
+        loadInsights();
+    }
+    if (searchInput.value.trim()) performSearch();
 });
 
 async function fetchSummary(filter) {
@@ -221,19 +305,6 @@ async function fetchList(type, filter) {
     const data = await res.json();
     renderListItems(data, `top-${type}-list`, type);
 }
-
-document.querySelectorAll('.time-toggler:not(#search-time-filter):not([data-target="insights"])').forEach(select => {
-    select.addEventListener('change', (e) => {
-        const target = e.target.getAttribute('data-target');
-        if (target === 'summary') {
-            fetchSummary(e.target.value);
-            fetchChartData();
-        } else {
-            const type = target.replace('top-', '');
-            fetchList(type, e.target.value);
-        }
-    });
-});
 
 // ── Now Playing ──
 let nowPlayingInterval = null;
@@ -341,12 +412,7 @@ if (timelineFeed) {
 }
 
 // ── Insights ──
-let insightsFilter = '3m';
-
-document.querySelector('[data-target="insights"]')?.addEventListener('change', (e) => {
-    insightsFilter = e.target.value;
-    loadInsights();
-});
+let currentTimeFilter = 'all';
 
 async function loadInsights() {
     try {
@@ -462,7 +528,7 @@ async function loadHourlyChart() {
     const ctx = canvas.getContext('2d');
     if (hourlyChartInstance) hourlyChartInstance.destroy();
 
-    const res = await fetch(`/api/stats/hourly?filter=${insightsFilter}`);
+    const res = await fetch(`/api/stats/hourly?filter=${currentTimeFilter}`);
     const data = await res.json();
     const labels = data.map(d => `${d.hour}:00`);
     const values = data.map(d => d.plays);
@@ -471,6 +537,7 @@ async function loadHourlyChart() {
     gradient.addColorStop(0, '#30d158');
     gradient.addColorStop(1, 'rgba(48,209,88,0.1)');
 
+    const cc = getChartColors();
     hourlyChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -487,8 +554,8 @@ async function loadHourlyChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.4)', stepSize: 1 } },
-                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.4)', maxRotation: 0, font: { size: 10 } } }
+                y: { beginAtZero: true, grid: { color: cc.grid }, ticks: { color: cc.tick, stepSize: 1 } },
+                x: { grid: { display: false }, ticks: { color: cc.tick, maxRotation: 0, font: { size: 10 } } }
             },
             plugins: { legend: { display: false } }
         }
@@ -501,7 +568,7 @@ async function loadDayOfWeekChart() {
     const ctx = canvas.getContext('2d');
     if (dayOfWeekChartInstance) dayOfWeekChartInstance.destroy();
 
-    const res = await fetch(`/api/stats/day-of-week?filter=${insightsFilter}`);
+    const res = await fetch(`/api/stats/day-of-week?filter=${currentTimeFilter}`);
     const data = await res.json();
     const labels = data.map(d => d.day_name);
     const values = data.map(d => d.plays);
@@ -513,6 +580,7 @@ async function loadDayOfWeekChart() {
     });
     const borderColors = data.map((_, i) => colors[i % colors.length]);
 
+    const cc = getChartColors();
     dayOfWeekChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -530,7 +598,7 @@ async function loadDayOfWeekChart() {
             plugins: {
                 legend: {
                     position: 'right',
-                    labels: { color: 'rgba(255,255,255,0.6)', boxWidth: 12, padding: 8, font: { size: 11 } }
+                    labels: { color: cc.legend, boxWidth: 12, padding: 8, font: { size: 11 } }
                 }
             }
         }
@@ -549,6 +617,7 @@ async function loadGrowthChart() {
     const plays = data.map(d => d.plays);
     const cumulative = data.map(d => d.cumulative);
 
+    const cc = getChartColors();
     growthChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -583,14 +652,14 @@ async function loadGrowthChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.4)', stepSize: 1 }, position: 'left' },
-                y1: { beginAtZero: true, grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.4)' }, position: 'right' },
-                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 9 }, maxRotation: 45 } }
+                y: { beginAtZero: true, grid: { color: cc.grid }, ticks: { color: cc.tick, stepSize: 1 }, position: 'left' },
+                y1: { beginAtZero: true, grid: { display: false }, ticks: { color: cc.tick }, position: 'right' },
+                x: { grid: { display: false }, ticks: { color: cc.tick, font: { size: 9 }, maxRotation: 45 } }
             },
             plugins: {
                 legend: {
                     position: 'top',
-                    labels: { color: 'rgba(255,255,255,0.6)', boxWidth: 12, font: { size: 10 } }
+                    labels: { color: cc.legend, boxWidth: 12, font: { size: 10 } }
                 }
             }
         }
@@ -603,7 +672,7 @@ async function loadGenreChart() {
     const ctx = canvas.getContext('2d');
     if (genreChartInstance) genreChartInstance.destroy();
 
-    const res = await fetch(`/api/stats/top-genres?filter=${insightsFilter}`);
+    const res = await fetch(`/api/stats/top-genres?filter=${currentTimeFilter}`);
     const data = await res.json();
     if (data.length === 0) {
         const parent = canvas.parentElement;
@@ -617,6 +686,7 @@ async function loadGenreChart() {
     const bgColors = labels.map((_, i) => genreColors[i % genreColors.length] + '33');
     const bColors = labels.map((_, i) => genreColors[i % genreColors.length]);
 
+    const cc = getChartColors();
     genreChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -635,8 +705,8 @@ async function loadGenreChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.4)', stepSize: 1 } },
-                y: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10 } } }
+                x: { beginAtZero: true, grid: { color: cc.grid }, ticks: { color: cc.tick, stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { color: cc.yTick, font: { size: 10 } } }
             },
             plugins: { legend: { display: false } }
         }
@@ -834,7 +904,6 @@ async function loadLibrary(page) {
 
 // ── Search ──
 const searchInput = document.getElementById('search-input');
-const searchFilter = document.getElementById('search-time-filter');
 const closeSearchBtn = document.getElementById('close-search-btn');
 const mainDashboard = document.getElementById('main-dashboard');
 const searchOverlay = document.getElementById('search-results-overlay');
@@ -849,8 +918,7 @@ async function performSearch() {
     searchOverlay.classList.remove('hidden');
     closeSearchBtn.classList.remove('hidden');
     
-    const filter = searchFilter.value;
-    const res = await fetch(`/api/stats/search?q=${encodeURIComponent(query)}&filter=${filter}`);
+    const res = await fetch(`/api/stats/search?q=${encodeURIComponent(query)}&filter=${currentTimeFilter}`);
     const data = await res.json();
     
     renderListItems(data.tracks, 'search-tracks-list', 'tracks');
@@ -867,10 +935,6 @@ function closeSearch() {
 searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(performSearch, 300);
-});
-
-searchFilter.addEventListener('change', () => {
-    if (searchInput.value.trim()) performSearch();
 });
 
 closeSearchBtn.addEventListener('click', closeSearch);
@@ -1045,11 +1109,12 @@ importFile.addEventListener('change', async (e) => {
 });
 
 // ── Initial Load ──
-fetchSummary('today');
+initTheme();
+fetchSummary(currentTimeFilter);
 fetchChartData();
-fetchList('tracks', 'today');
-fetchList('albums', 'today');
-fetchList('artists', 'today');
+fetchList('tracks', currentTimeFilter);
+fetchList('albums', currentTimeFilter);
+fetchList('artists', currentTimeFilter);
 fetchNowPlaying();
 nowPlayingInterval = setInterval(fetchNowPlaying, 15000);
 loadTimeline(true);
