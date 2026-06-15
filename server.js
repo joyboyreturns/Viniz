@@ -49,8 +49,20 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
         let row = null;
         if (naviDb) {
             try {
-                row = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file 
-                                      WHERE title = ? AND artist = ?`).get(trackName, artistName);
+                const dbQuery = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file 
+                                                WHERE title = ? AND artist = ?`);
+                row = dbQuery.get(trackName, artistName);
+                if (!row) {
+                    const cleanTitle = trackName.replace(/\s*\(.*?\)\s*/g, '').replace(/\s*\[.*?\]\s*/g, '').replace(/\s*feat\..*/i, '').trim();
+                    if (cleanTitle !== trackName) {
+                        row = dbQuery.get(cleanTitle, artistName);
+                    }
+                }
+                if (!row) {
+                    const fuzzy = trackName.replace(/[%_]/g, '\\$&').substring(0, 50);
+                    row = naviDb.prepare(`SELECT id as track_id, album_id, artist_id, duration, genre FROM media_file 
+                                          WHERE title LIKE ? AND artist = ?`).get(`%${fuzzy}%`, artistName);
+                }
             } catch (e) {
                 console.error('naviDb query error:', e);
             }
@@ -128,7 +140,7 @@ app.get('/api/stats/top-tracks', (req, res) => {
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
             FROM history WHERE ${condition}
             GROUP BY track_name, artist_name, album_name
-            ORDER BY plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
+            ORDER BY playtime DESC, plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
         if (err) return res.status(500).json({error: err.message});
         res.json(rows);
     });
@@ -142,7 +154,7 @@ app.get('/api/stats/top-albums', (req, res) => {
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
             FROM history WHERE ${condition} AND album_name != 'Unknown'
             GROUP BY album_name, artist_name
-            ORDER BY plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
+            ORDER BY playtime DESC, plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
         if (err) return res.status(500).json({error: err.message});
         res.json(rows);
     });
@@ -156,7 +168,7 @@ app.get('/api/stats/top-artists', (req, res) => {
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
             FROM history WHERE ${condition}
             GROUP BY artist_name
-            ORDER BY plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
+            ORDER BY playtime DESC, plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
         if (err) return res.status(500).json({error: err.message});
         res.json(rows);
     });
@@ -180,7 +192,7 @@ app.get('/api/stats/artist/:name', (req, res) => {
                 SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                 FROM history WHERE ${condition} AND artist_name = ?
                 GROUP BY track_name
-                ORDER BY plays DESC, views DESC LIMIT 10`, [artistName], (err, tracks) => {
+                ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistName], (err, tracks) => {
             if (err) return res.status(500).json({error: err.message});
             
             db.all(`SELECT album_name, MAX(album_id) as album_id,
@@ -189,7 +201,7 @@ app.get('/api/stats/artist/:name', (req, res) => {
                     SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                     FROM history WHERE ${condition} AND artist_name = ? AND album_name != 'Unknown'
                     GROUP BY album_name
-                    ORDER BY plays DESC, views DESC LIMIT 10`, [artistName], (err, albums) => {
+                    ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistName], (err, albums) => {
                 if (err) return res.status(500).json({error: err.message});
                 
                 res.json({
@@ -220,7 +232,7 @@ app.get('/api/stats/album/:name', (req, res) => {
                 SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                 FROM history WHERE ${condition} AND album_name = ?
                 GROUP BY track_name
-                ORDER BY plays DESC, views DESC`, [albumName], (err, tracks) => {
+                ORDER BY playtime DESC, plays DESC, views DESC`, [albumName], (err, tracks) => {
             if (err) return res.status(500).json({error: err.message});
 
             db.all(`SELECT date(timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as day,
@@ -263,7 +275,7 @@ app.get('/api/stats/search', (req, res) => {
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
             FROM history WHERE ${condition} AND track_name LIKE ?
             GROUP BY track_name
-            ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, tracks) => {
+            ORDER BY playtime DESC, plays DESC, views DESC LIMIT 5`, [query], (err, tracks) => {
         if (err) return res.status(500).json({error: err.message});
         
         db.all(`SELECT album_name, MAX(album_id) as album_id, artist_name,
@@ -272,7 +284,7 @@ app.get('/api/stats/search', (req, res) => {
                 SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                 FROM history WHERE ${condition} AND album_name LIKE ? AND album_name != 'Unknown'
                 GROUP BY album_name
-                ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, albums) => {
+                ORDER BY playtime DESC, plays DESC, views DESC LIMIT 5`, [query], (err, albums) => {
             if (err) return res.status(500).json({error: err.message});
             
             db.all(`SELECT artist_name, MAX(artist_id) as artist_id,
@@ -281,7 +293,7 @@ app.get('/api/stats/search', (req, res) => {
                     SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                     FROM history WHERE ${condition} AND artist_name LIKE ?
                     GROUP BY artist_name
-                    ORDER BY plays DESC, views DESC LIMIT 5`, [query], (err, artists) => {
+                    ORDER BY playtime DESC, plays DESC, views DESC LIMIT 5`, [query], (err, artists) => {
                 if (err) return res.status(500).json({error: err.message});
                 
                 res.json({
@@ -356,7 +368,12 @@ app.post('/api/settings', (req, res) => {
     res.json({ status: 'ok', utc_offset: utcOffset });
 });
 
+const PLACEHOLDER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect fill="#333" width="300" height="300"/><circle fill="#555" cx="150" cy="135" r="40"/><rect fill="#555" x="110" y="175" width="80" height="90" rx="6"/></svg>';
+
 app.get('/api/cover-art/:id', (req, res) => {
+    if (!req.params.id) {
+        return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
+    }
     const navHost = process.env.NAVIDROME_HOST || 'localhost';
     const navPort = process.env.NAVIDROME_PORT || '4533';
     const navUser = process.env.NAVIDROME_USER || '';
@@ -364,10 +381,14 @@ app.get('/api/cover-art/:id', (req, res) => {
     const url = `http://${navHost}:${navPort}/rest/getCoverArt?id=${req.params.id}&u=${navUser}&p=${navPass}&v=1.12.0&c=Viniz`;
 
     http.get(url, (proxyRes) => {
+        if (proxyRes.statusCode !== 200) {
+            return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
+        }
+        res.set('Cache-Control', 'public, max-age=86400');
         proxyRes.pipe(res);
     }).on('error', (err) => {
         console.error('Cover art proxy error:', err.message);
-        res.status(500).json({ error: 'Failed to fetch cover art' });
+        res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
     });
 });
 
@@ -514,7 +535,7 @@ app.get('/api/stats/top-genres', (req, res) => {
                 SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
                 FROM history WHERE ${condition} AND genre != '' AND genre IS NOT NULL
                 GROUP BY genre
-                ORDER BY plays DESC LIMIT 20`, [], (err, rows) => {
+                ORDER BY playtime DESC LIMIT 20`, [], (err, rows) => {
             if (err) return res.status(500).json({error: err.message});
             return res.json(rows);
         });
@@ -523,7 +544,7 @@ app.get('/api/stats/top-genres', (req, res) => {
                 SUM(CASE WHEN h.event_type='play' THEN h.duration ELSE 0 END) as playtime
                 FROM history h WHERE ${condition} AND h.genre != '' AND h.genre IS NOT NULL
                 GROUP BY h.genre
-                ORDER BY plays DESC LIMIT 20`, [], (err, rows) => {
+                ORDER BY playtime DESC LIMIT 20`, [], (err, rows) => {
             if (err) return res.status(500).json({error: err.message});
             res.json(rows);
         });
