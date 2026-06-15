@@ -1281,6 +1281,61 @@ body {
 .toast.error { border-color: rgba(250,35,59,0.3); color: var(--accent); }
 .toast.info { border-color: rgba(10,132,255,0.3); color: var(--accent2); }
 
+/* ── Settings Modal ── */
+.settings-modal .modal-body {
+  padding: 2rem;
+}
+
+.settings-modal h2 {
+  margin: 0 0 1.5rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.settings-group {
+  margin-bottom: 1.5rem;
+}
+
+.settings-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.settings-group select {
+  width: 100%;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.settings-group select:hover {
+  border-color: var(--border-hover);
+}
+
+.settings-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin: 0.4rem 0 0;
+}
+
+#save-settings {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* ── Loading ── */
 .loading-spinner {
   display: flex;

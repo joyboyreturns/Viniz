@@ -5,6 +5,13 @@ const path = require('path');
 const http = require('http');
 const { db, naviDb } = require('./database');
 
+let utcOffset = 5.5;
+db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
+    if (!err && row) {
+        utcOffset = parseFloat(row.value) || 5.5;
+    }
+});
+
 const app = express();
 const PORT = process.env.PORT || 4096;
 
@@ -77,15 +84,15 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
 
 function getTimeCondition(filter) {
     const now = Math.floor(Date.now() / 1000);
+    const offsetSeconds = utcOffset * 3600;
     switch(filter) {
-        case 'today':
-            const ms = Date.now();
-            const dayStart = new Date(ms);
-            dayStart.setUTCHours(5, 30, 0, 0);
-            if (dayStart.getTime() > ms) {
-                dayStart.setUTCDate(dayStart.getUTCDate() - 1);
-            }
-            return `timestamp >= ${Math.floor(dayStart.getTime() / 1000)}`;
+        case 'today': {
+            const localNow = Date.now() + offsetSeconds * 1000;
+            const dayStart = new Date(localNow);
+            dayStart.setUTCHours(0, 0, 0, 0);
+            const utcMidnight = dayStart.getTime() - offsetSeconds * 1000;
+            return `timestamp >= ${Math.floor(utcMidnight / 1000)}`;
+        }
         case '7d': return `timestamp >= ${now - 7*86400}`;
         case '14d': return `timestamp >= ${now - 14*86400}`;
         case '1m': return `timestamp >= ${now - 30*86400}`;
@@ -94,6 +101,11 @@ function getTimeCondition(filter) {
         case '1y': return `timestamp >= ${now - 365*86400}`;
         default: return '1=1';
     }
+}
+
+function localDateStr(offsetSeconds, ts) {
+    const d = new Date((ts || Date.now()) + offsetSeconds * 1000);
+    return d.toISOString().split('T')[0];
 }
 
 app.get('/api/stats/summary', (req, res) => {
@@ -211,7 +223,7 @@ app.get('/api/stats/album/:name', (req, res) => {
                 ORDER BY plays DESC, views DESC`, [albumName], (err, tracks) => {
             if (err) return res.status(500).json({error: err.message});
 
-            db.all(`SELECT date(timestamp, 'unixepoch', 'localtime') as day,
+            db.all(`SELECT date(timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as day,
                     SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
                     SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
                     FROM history WHERE album_name = ? AND album_name != 'Unknown'
@@ -229,7 +241,7 @@ app.get('/api/stats/album/:name', (req, res) => {
 });
 
 app.get('/api/stats/chart', (req, res) => {
-    db.all(`SELECT date(timestamp, 'unixepoch', 'localtime') as day,
+    db.all(`SELECT date(timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as day,
             SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
             FROM history
@@ -330,6 +342,20 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+app.get('/api/settings', (req, res) => {
+    res.json({ utc_offset: utcOffset });
+});
+
+app.post('/api/settings', (req, res) => {
+    const { utc_offset } = req.body;
+    if (typeof utc_offset !== 'number') {
+        return res.status(400).json({ error: 'utc_offset must be a number' });
+    }
+    utcOffset = utc_offset;
+    db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('utc_offset', ?)`, [String(utc_offset)]);
+    res.json({ status: 'ok', utc_offset: utcOffset });
+});
+
 app.get('/api/cover-art/:id', (req, res) => {
     const navHost = process.env.NAVIDROME_HOST || 'localhost';
     const navPort = process.env.NAVIDROME_PORT || '4533';
@@ -358,7 +384,7 @@ app.get('/api/stats/recent', (req, res) => {
 
 app.get('/api/stats/heatmap', (req, res) => {
     const days = parseInt(req.query.days) || 365;
-    db.all(`SELECT date(timestamp, 'unixepoch', 'localtime') as day,
+    db.all(`SELECT date(timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as day,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
             SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views
             FROM history
@@ -372,7 +398,7 @@ app.get('/api/stats/heatmap', (req, res) => {
 
 app.get('/api/stats/hourly', (req, res) => {
     const condition = getTimeCondition(req.query.filter);
-    db.all(`SELECT CAST(strftime('%H', timestamp, 'unixepoch', 'localtime') AS INTEGER) as hour,
+    db.all(`SELECT CAST(strftime('%H', timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') AS INTEGER) as hour,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
             SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views
             FROM history WHERE ${condition}
@@ -388,7 +414,7 @@ app.get('/api/stats/hourly', (req, res) => {
 });
 
 app.get('/api/stats/streaks', (req, res) => {
-    db.all(`SELECT DISTINCT date(timestamp, 'unixepoch', 'localtime') as day
+    db.all(`SELECT DISTINCT date(timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as day
             FROM history
             WHERE event_type='play'
             ORDER BY day DESC`, [], (err, rows) => {
@@ -400,8 +426,9 @@ app.get('/api/stats/streaks', (req, res) => {
         }
 
         let current = 0;
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const offsetMs = utcOffset * 3600 * 1000;
+        const today = new Date(Date.now() + offsetMs).toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() + offsetMs - 86400000).toISOString().split('T')[0];
 
         if (dates[0] === today || dates[0] === yesterday) {
             let check = dates[0] === today ? today : yesterday;
@@ -453,7 +480,7 @@ app.get('/api/stats/unique-counts', (req, res) => {
 });
 
 app.get('/api/stats/growth', (req, res) => {
-    db.all(`SELECT strftime('%Y-%m', timestamp, 'unixepoch', 'localtime') as month,
+    db.all(`SELECT strftime('%Y-%m', timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') as month,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
             FROM history
             GROUP BY month
@@ -505,7 +532,7 @@ app.get('/api/stats/top-genres', (req, res) => {
 
 app.get('/api/stats/day-of-week', (req, res) => {
     const condition = getTimeCondition(req.query.filter);
-    db.all(`SELECT CAST(strftime('%w', timestamp, 'unixepoch', 'localtime') AS INTEGER) as day,
+    db.all(`SELECT CAST(strftime('%w', timestamp + ${Math.round(utcOffset * 3600)}, 'unixepoch') AS INTEGER) as day,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
             FROM history WHERE ${condition}
             GROUP BY day

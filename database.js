@@ -59,6 +59,19 @@ db.serialize(() => {
             console.error('Alter table error:', err.message);
         }
     });
+
+    db.run(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )`);
+
+    db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
+        if (err) {
+            console.error('Settings query error:', err.message);
+        } else if (!row) {
+            db.run(`INSERT INTO settings (key, value) VALUES ('utc_offset', '5.5')`);
+        }
+    });
 });
 
 module.exports = { db, naviDb };

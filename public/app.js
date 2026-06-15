@@ -1108,6 +1108,64 @@ importFile.addEventListener('change', async (e) => {
     reader.readAsText(file);
 });
 
+// ── Settings ──
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsBtn = document.getElementById('close-settings');
+const utcOffsetSelect = document.getElementById('utc-offset-select');
+const saveSettingsBtn = document.getElementById('save-settings');
+
+function buildUtcOffsetOptions() {
+    const browserOffset = -new Date().getTimezoneOffset() / 60;
+    utcOffsetSelect.innerHTML = '';
+    for (let i = -12; i <= 14; i += 0.5) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        const sign = i >= 0 ? '+' : '';
+        const label = i % 1 === 0 ? `${i}:00` : `${Math.floor(i)}:30`;
+        opt.textContent = `UTC${sign}${label}${Math.abs(i - browserOffset) < 0.01 ? ' (Your timezone)' : ''}${Math.abs(i - 5.5) < 0.01 ? ' (IST)' : ''}`;
+        utcOffsetSelect.appendChild(opt);
+    }
+}
+
+settingsBtn.addEventListener('click', async () => {
+    buildUtcOffsetOptions();
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        utcOffsetSelect.value = String(data.utc_offset);
+    } catch (e) {
+        utcOffsetSelect.value = '5.5';
+    }
+    settingsModal.classList.add('active');
+});
+
+closeSettingsBtn.addEventListener('click', () => {
+    settingsModal.classList.remove('active');
+});
+
+settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) settingsModal.classList.remove('active');
+});
+
+saveSettingsBtn.addEventListener('click', async () => {
+    const utc_offset = parseFloat(utcOffsetSelect.value);
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ utc_offset })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            showToast('Settings saved', 'success');
+            settingsModal.classList.remove('active');
+        }
+    } catch (e) {
+        showToast('Failed to save settings', 'error');
+    }
+});
+
 // ── Initial Load ──
 initTheme();
 fetchSummary(currentTimeFilter);
