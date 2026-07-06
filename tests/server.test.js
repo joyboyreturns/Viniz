@@ -382,6 +382,54 @@ test.describe('Server Integration Test', () => {
         assert.deepStrictEqual(bodyInvalid, { views: 1, plays: 3, playtime: 600 });
     });
 
+    test('should scope top-tracks and this-week to the current calendar week', async () => {
+        const sqlite3 = require('sqlite3').verbose();
+        const runDb = (sql, params = []) => {
+            return new Promise((resolve, reject) => {
+                const db = new sqlite3.Database(vinizDbPath, (err) => {
+                    if (err) return reject(err);
+                });
+                db.run(sql, params, function(err) {
+                    db.close();
+                    if (err) return reject(err);
+                    resolve(this);
+                });
+            });
+        };
+
+        // Reset history and seed two plays: one now (inside this week), one 8 days ago (outside this week)
+        await runDb("DELETE FROM history");
+        const now = Math.floor(Date.now() / 1000);
+        await runDb(`INSERT INTO history (user_name, track_name, artist_name, album_name, duration, event_type, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                     ['User Vincent', 'Week Track', 'Artist W', 'Album W', 100, 'play', now]);
+        await runDb(`INSERT INTO history (user_name, track_name, artist_name, album_name, duration, event_type, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                     ['User Vincent', 'Old Track', 'Artist O', 'Album O', 200, 'play', now - 8 * 86400]);
+
+        // filter=week should include only "Week Track"
+        const resWeek = await fetch('http://localhost:4096/api/stats/top-tracks?filter=week');
+        assert.strictEqual(resWeek.status, 200);
+        const rowsWeek = await resWeek.json();
+        const namesWeek = rowsWeek.map(r => r.track_name);
+        assert.ok(namesWeek.includes('Week Track'), 'Week Track should appear in filter=week');
+        assert.ok(!namesWeek.includes('Old Track'), 'Old Track should NOT appear in filter=week');
+
+        // /api/stats/this-week payload shape
+        const resTw = await fetch('http://localhost:4096/api/stats/this-week');
+        assert.strictEqual(resTw.status, 200);
+        const tw = await resTw.json();
+        assert.strictEqual(tw.summary.plays, 1, 'only the in-week play should be counted');
+        assert.ok(Array.isArray(tw.daily) && tw.daily.length === 7, 'daily should have 7 Mon–Sun entries');
+        tw.daily.forEach(d => {
+            assert.ok(typeof d.label === 'string');
+            assert.ok(typeof d.plays === 'number');
+        });
+        assert.ok(tw.week_range && tw.week_range.start && tw.week_range.end && tw.week_range.label, 'week_range should be populated');
+        assert.strictEqual(tw.top_track && tw.top_track.track_name, 'Week Track', "week's #1 should be Week Track");
+        assert.ok(tw.prev && typeof tw.prev.plays === 'number' && typeof tw.prev.playtime === 'number', 'prev should carry numeric plays/playtime');
+    });
+
     test('should return HTTP 500 when database query fails', async () => {
         const sqlite3 = require('sqlite3').verbose();
         const runDb = (sql) => {

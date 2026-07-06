@@ -94,6 +94,17 @@ app.post('/apis/listenbrainz/1/submit-listens', (req, res) => {
     res.status(200).json({status: "ok"});
 });
 
+// Returns the UTC unix second of local Monday 00:00 for the current week.
+function getWeekStart() {
+    const offsetSeconds = utcOffset * 3600;
+    const localNow = new Date(Date.now() + offsetSeconds * 1000);
+    localNow.setUTCHours(0, 0, 0, 0);          // local midnight
+    const dow = localNow.getUTCDay();          // 0=Sun .. 6=Sat
+    const daysSinceMonday = (dow + 6) % 7;     // Mon=0 … Sun=6
+    localNow.setUTCDate(localNow.getUTCDate() - daysSinceMonday);
+    return Math.floor((localNow.getTime() - offsetSeconds * 1000) / 1000);
+}
+
 function getTimeCondition(filter) {
     const now = Math.floor(Date.now() / 1000);
     const offsetSeconds = utcOffset * 3600;
@@ -105,6 +116,7 @@ function getTimeCondition(filter) {
             const utcMidnight = dayStart.getTime() - offsetSeconds * 1000;
             return `timestamp >= ${Math.floor(utcMidnight / 1000)}`;
         }
+        case 'week': return `timestamp >= ${getWeekStart()}`;
         case '7d': return `timestamp >= ${now - 7*86400}`;
         case '14d': return `timestamp >= ${now - 14*86400}`;
         case '1m': return `timestamp >= ${now - 30*86400}`;
@@ -282,6 +294,93 @@ app.get('/api/stats/chart', (req, res) => {
         if (err) return res.status(500).json({error: err.message});
         res.json(rows);
     });
+});
+
+app.get('/api/stats/this-week', (req, res) => {
+    const uo = Math.round(utcOffset * 3600);
+    const ws = getWeekStart();
+    const wsPrev = ws - 7 * 86400;
+
+    const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+    });
+    const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+    });
+
+    const summaryQ = `SELECT
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime,
+            SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
+            COUNT(DISTINCT track_name) as unique_tracks,
+            COUNT(DISTINCT date(timestamp + ${uo}, 'unixepoch')) as active_days
+            FROM history WHERE timestamp >= ${ws}`;
+    const dailyQ = `SELECT date(timestamp + ${uo}, 'unixepoch') as day,
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+            FROM history WHERE timestamp >= ${ws}
+            GROUP BY day ORDER BY day ASC`;
+    const topTrackQ = `SELECT track_name, artist_name, album_name, MAX(track_id) as track_id, MAX(album_id) as album_id,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime,
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays
+            FROM history WHERE timestamp >= ${ws}
+            GROUP BY track_name, artist_name, album_name
+            ORDER BY playtime DESC, plays DESC LIMIT 1`;
+    const prevQ = `SELECT
+            SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
+            SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
+            FROM history WHERE timestamp >= ${wsPrev} AND timestamp < ${ws}`;
+
+    Promise.all([
+        dbGet(summaryQ),
+        dbAll(dailyQ),
+        dbGet(topTrackQ),
+        dbGet(prevQ)
+    ]).then(([summary, dailyRows, topTrack, prev]) => {
+        const norm = (v) => (v == null ? 0 : v);
+        // Build the Mon–Sun daily array from the local Monday midnight.
+        const monday = new Date(Date.now() + uo * 1000);
+        monday.setUTCHours(0, 0, 0, 0);
+        const daysSinceMonday = (monday.getUTCDay() + 6) % 7;
+        monday.setUTCDate(monday.getUTCDate() - daysSinceMonday);
+
+        const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        const daily = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday.getTime() + i * 86400000);
+            const dateStr = d.toISOString().split('T')[0];
+            const row = dailyRows.find(r => r.day === dateStr);
+            daily.push({
+                day_index: i,
+                label: DOW[i],
+                date: dateStr,
+                plays: row ? norm(row.plays) : 0,
+                playtime: row ? norm(row.playtime) : 0
+            });
+        }
+        const sunday = new Date(monday.getTime() + 6 * 86400000);
+        const fmt = (dt) => `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
+        const s = summary || {};
+
+        res.json({
+            week_range: {
+                start: daily[0].date,
+                end: daily[6].date,
+                label: `${fmt(monday)} – ${fmt(sunday)}`
+            },
+            summary: {
+                plays: norm(s.plays),
+                playtime: norm(s.playtime),
+                views: norm(s.views),
+                unique_tracks: norm(s.unique_tracks),
+                active_days: norm(s.active_days)
+            },
+            daily,
+            top_track: topTrack && topTrack.track_name ? topTrack : null,
+            prev: { plays: norm(prev && prev.plays), playtime: norm(prev && prev.playtime) }
+        });
+    }).catch(err => res.status(500).json({ error: err.message }));
 });
 
 app.get('/api/stats/search', (req, res) => {

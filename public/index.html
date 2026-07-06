@@ -28,6 +28,7 @@
                     <button id="theme-toggle" class="action-btn" onclick="toggleTheme()">Loading...</button>
                     <select id="global-time-toggler" class="time-toggler">
                         <option value="today">Today</option>
+                        <option value="week">This Week</option>
                         <option value="7d">7 Days</option>
                         <option value="14d">14 Days</option>
                         <option value="1m">1 Month</option>
@@ -87,46 +88,80 @@
                 </div>
             </section>
 
-            <section id="summary-section">
-                <div class="section-header">
-                    <h2>Overview</h2>
-                    <div class="header-controls">
-                        <div class="chart-toggle-group">
-                            <button class="chart-toggle-btn active" data-mode="views">Views</button>
-                            <button class="chart-toggle-btn" data-mode="plays">Plays</button>
-                        </div>
+            <section id="this-week-section" class="this-week-hero">
+                <div class="this-week-header">
+                    <div class="this-week-title">
+                        <h2>This Week</h2>
+                        <span class="week-range" id="week-range">—</span>
+                    </div>
+                    <span class="delta-chip" id="week-delta"></span>
+                </div>
+                <div class="week-stats">
+                    <div class="summary-card stat-card" data-stat="plays">
+                        <div class="stat-value" id="week-plays">0</div>
+                        <div class="stat-label">Plays</div>
+                    </div>
+                    <div class="summary-card stat-card" data-stat="playtime">
+                        <div class="stat-value" id="week-playtime">0m</div>
+                        <div class="stat-label">Playtime</div>
+                    </div>
+                    <div class="summary-card stat-card" data-stat="songs">
+                        <div class="stat-value" id="week-songs">0</div>
+                        <div class="stat-label">Unique Songs</div>
+                    </div>
+                    <div class="summary-card stat-card" data-stat="days">
+                        <div class="stat-value" id="week-days">0</div>
+                        <div class="stat-label">Active Days</div>
                     </div>
                 </div>
-                <div class="summary-body">
-                    <div class="summary-grid">
-                        <div class="summary-card stat-card" data-stat="plays">
-                            <div class="stat-value" id="total-plays">0</div>
-                            <div class="stat-label">Plays</div>
+                <div class="week-body">
+                    <div class="summary-card week-chart-card">
+                        <div class="week-chart-header">
+                            <h3>Activity</h3>
+                            <div class="chart-toggle-group" id="week-chart-toggle">
+                                <button class="chart-toggle-btn active" data-mode="plays">Plays</button>
+                                <button class="chart-toggle-btn" data-mode="time">Time</button>
+                            </div>
                         </div>
-                        <div class="summary-card stat-card" data-stat="playtime">
-                            <div class="stat-value" id="total-playtime">0.0 min</div>
-                            <div class="stat-label">Playtime</div>
-                        </div>
-                        <div class="summary-card stat-card" data-stat="views">
-                            <div class="stat-value" id="total-views">0</div>
-                            <div class="stat-label">Views</div>
+                        <div class="chart-wrapper">
+                            <canvas id="weekChart"></canvas>
                         </div>
                     </div>
-                    <div class="summary-card chart-card">
-                        <div class="chart-wrapper">
-                            <canvas id="summaryBarChart"></canvas>
+                    <div class="summary-card week-top-track" id="week-top-track">
+                        <span class="week-top-label">Week's #1</span>
+                        <div class="week-top-body">
+                            <img class="week-top-cover" alt="">
+                            <div class="week-top-info">
+                                <span class="week-top-name">—</span>
+                                <span class="week-top-artist">—</span>
+                                <span class="week-top-stat">—</span>
+                            </div>
+                            <button class="week-top-play" title="Play">▶</button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section id="lists-section">
-                <div class="list-container" id="top-tracks-container">
-                    <div class="list-header">
-                        <h2>Top Songs</h2>
+            <section id="top50-section" class="top50-section">
+                <div class="top50-header">
+                    <div class="top50-title">
+                        <h2>Top 50</h2>
+                        <span class="top50-scope-label" id="top50-scope-label">All Time</span>
                     </div>
-                    <ul id="top-tracks-list" class="stats-list"></ul>
+                    <div class="top50-controls">
+                        <div class="top50-scope-toggle" id="top50-scope-toggle">
+                            <button class="scope-btn active" data-scope="all">All Time</button>
+                            <button class="scope-btn" data-scope="week">This Week</button>
+                            <button class="scope-btn" data-scope="1m">This Month</button>
+                        </div>
+                        <button class="play-all-btn" id="top50-play-all">▶ Play All</button>
+                    </div>
                 </div>
+                <div class="podium" id="top50-podium"></div>
+                <ul class="top50-list" id="top50-list"></ul>
+            </section>
+
+            <section id="lists-section">
                 <div class="list-container" id="top-albums-container">
                     <div class="list-header">
                         <h2>Top Albums</h2>

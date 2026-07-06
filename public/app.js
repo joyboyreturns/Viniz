@@ -42,6 +42,8 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+const COVER_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4=';
+
 // ── Toast System ──
 function showToast(message, type) {
     const container = document.getElementById('toast-container');
@@ -94,11 +96,11 @@ function getChartColors() {
 
 function updateChartsForTheme() {
     const c = getChartColors();
-    if (barChartInstance) {
-        barChartInstance.options.scales.y.grid.color = c.grid;
-        barChartInstance.options.scales.y.ticks.color = c.tickBright;
-        barChartInstance.options.scales.x.ticks.color = c.tickBright;
-        barChartInstance.update();
+    if (weekChartInstance) {
+        weekChartInstance.options.scales.y.grid.color = c.grid;
+        weekChartInstance.options.scales.y.ticks.color = c.tickBright;
+        weekChartInstance.options.scales.x.ticks.color = c.tickBright;
+        weekChartInstance.update();
     }
     if (hourlyChartInstance) {
         hourlyChartInstance.options.scales.y.grid.color = c.grid;
@@ -127,9 +129,12 @@ function updateChartsForTheme() {
 }
 
 // ── Chart Instances ──
-let barChartInstance = null;
-let chartDataCache = [];
-let currentChartMode = 'views';
+let weekChartInstance = null;
+let weekChartData = [];
+let weekChartMode = 'plays';
+
+let top50RowsCache = [];
+let currentTop50Scope = 'all';
 
 let hourlyChartInstance = null;
 let dayOfWeekChartInstance = null;
@@ -150,45 +155,101 @@ tabBtns.forEach(btn => {
     });
 });
 
-// ── Dashboard ──
-async function fetchChartData() {
-    const res = await fetch('/api/stats/chart');
-    chartDataCache = await res.json();
-    renderChart();
+// ── Dashboard: This Week + Top 50 ──
+async function loadThisWeek() {
+    try {
+        const res = await fetch('/api/stats/this-week');
+        const data = await res.json();
+        const s = data.summary || {};
+
+        animateNumber('week-plays', s.plays || 0);
+        document.getElementById('week-playtime').innerText = formatPlaytime(s.playtime || 0);
+        animateNumber('week-songs', s.unique_tracks || 0);
+        animateNumber('week-days', s.active_days || 0);
+
+        const rangeEl = document.getElementById('week-range');
+        if (rangeEl) rangeEl.textContent = (data.week_range && data.week_range.label) || '';
+
+        const deltaEl = document.getElementById('week-delta');
+        const curPlays = s.plays || 0;
+        const prevPlays = (data.prev && data.prev.plays) || 0;
+        deltaEl.className = 'delta-chip';
+        if (prevPlays > 0) {
+            const pct = Math.round(((curPlays - prevPlays) / prevPlays) * 100);
+            if (pct > 0) { deltaEl.classList.add('up'); deltaEl.textContent = `▲ ${pct}% vs last week`; }
+            else if (pct < 0) { deltaEl.classList.add('down'); deltaEl.textContent = `▼ ${Math.abs(pct)}% vs last week`; }
+            else { deltaEl.classList.add('flat'); deltaEl.textContent = '±0% vs last week'; }
+        } else if (curPlays > 0) {
+            deltaEl.classList.add('up'); deltaEl.textContent = 'New this week';
+        } else {
+            deltaEl.classList.add('flat'); deltaEl.textContent = 'No plays yet';
+        }
+
+        renderWeekTopTrack(data.top_track);
+
+        weekChartData = data.daily || [];
+        renderWeekChart();
+    } catch (e) {
+        console.error('This week error:', e);
+    }
 }
 
-function renderChart() {
-    const canvas = document.getElementById('summaryBarChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (barChartInstance) barChartInstance.destroy();
-    
-    const labels = [];
-    const dataPoints = [];
-    
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const dayStr = d.toISOString().split('T')[0];
-        const row = chartDataCache.find(r => r.day === dayStr);
-        labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
-        dataPoints.push(row ? (currentChartMode === 'views' ? row.views : row.plays) : 0);
+function renderWeekTopTrack(track) {
+    const card = document.getElementById('week-top-track');
+    if (!card) return;
+    const nameEl = card.querySelector('.week-top-name');
+    const artistEl = card.querySelector('.week-top-artist');
+    const statEl = card.querySelector('.week-top-stat');
+    const coverEl = card.querySelector('.week-top-cover');
+    const playBtn = card.querySelector('.week-top-play');
+
+    if (!track || !track.track_name) {
+        nameEl.textContent = 'No plays yet';
+        artistEl.textContent = "Start listening to see your week's top track";
+        statEl.textContent = '';
+        coverEl.removeAttribute('src');
+        coverEl.style.visibility = 'hidden';
+        playBtn.disabled = true;
+        playBtn.onclick = null;
+        return;
     }
 
-    const isViews = currentChartMode === 'views';
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, isViews ? '#fa233b' : '#0a84ff');
-    gradient.addColorStop(1, isViews ? 'rgba(250,35,59,0.1)' : 'rgba(10,132,255,0.1)');
+    const coverUrl = getCoverArtUrl(track.album_id || track.track_id);
+    coverEl.style.visibility = '';
+    coverEl.src = coverUrl;
+    coverEl.onerror = () => { coverEl.src = COVER_PLACEHOLDER; };
+    nameEl.textContent = track.track_name;
+    artistEl.textContent = track.artist_name;
+    statEl.textContent = `${track.plays || 0} plays · ${formatPlaytime(track.playtime || 0)}`;
+    playBtn.disabled = false;
+    playBtn.onclick = (e) => {
+        e.stopPropagation();
+        playTrackFromListing(track.track_name, track.artist_name, track.album_name, coverUrl, track.playtime, track.track_id, track.album_id);
+    };
+}
+
+function renderWeekChart() {
+    const canvas = document.getElementById('weekChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (weekChartInstance) weekChartInstance.destroy();
+
+    const isPlays = weekChartMode === 'plays';
+    const labels = (weekChartData || []).map(d => d.label);
+    const values = (weekChartData || []).map(d => isPlays ? (d.plays || 0) : (d.playtime || 0));
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+    gradient.addColorStop(0, '#fa233b');
+    gradient.addColorStop(1, 'rgba(250,35,59,0.12)');
 
     const cc = getChartColors();
-    barChartInstance = new Chart(ctx, {
+    weekChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
             datasets: [{
-                label: isViews ? 'Views' : 'Plays',
-                data: dataPoints,
+                label: isPlays ? 'Plays' : 'Playtime',
+                data: values,
                 backgroundColor: gradient,
                 borderRadius: 6,
                 borderWidth: 0
@@ -198,28 +259,178 @@ function renderChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, grid: { color: cc.grid }, ticks: { color: cc.tickBright, stepSize: 1, callback: v => Number.isInteger(v) ? v : '' } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: cc.grid },
+                    ticks: {
+                        color: cc.tickBright,
+                        ...(isPlays
+                            ? { stepSize: 1, callback: v => Number.isInteger(v) ? v : '' }
+                            : { callback: v => v ? Math.round(v / 60) + 'm' : '' })
+                    }
+                },
                 x: { grid: { display: false }, ticks: { color: cc.tickBright } }
             },
-            plugins: { legend: { display: false } }
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => isPlays ? `${c.parsed.y} plays` : formatPlaytime(c.parsed.y) } }
+            }
         }
     });
 }
 
-document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.chart-toggle-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        currentChartMode = e.currentTarget.dataset.mode;
-        renderChart();
+document.querySelectorAll('#week-chart-toggle .chart-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#week-chart-toggle .chart-toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        weekChartMode = btn.dataset.mode;
+        renderWeekChart();
     });
+});
+
+const TOP50_SCOPE_LABELS = { all: 'All Time', week: 'This Week', '1m': 'This Month' };
+
+async function loadTop50(scope) {
+    currentTop50Scope = scope || 'all';
+    const labelEl = document.getElementById('top50-scope-label');
+    if (labelEl) labelEl.textContent = TOP50_SCOPE_LABELS[currentTop50Scope] || 'All Time';
+    document.querySelectorAll('#top50-scope-toggle .scope-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.scope === currentTop50Scope);
+    });
+
+    try {
+        const res = await fetch(`/api/stats/top-tracks?filter=${currentTop50Scope}`);
+        const rows = await res.json();
+        top50RowsCache = Array.isArray(rows) ? rows : [];
+    } catch (e) {
+        console.error('Top 50 error:', e);
+        top50RowsCache = [];
+    }
+    renderTop50();
+}
+
+function renderTop50() {
+    const podium = document.getElementById('top50-podium');
+    const list = document.getElementById('top50-list');
+    const playAllBtn = document.getElementById('top50-play-all');
+    if (!podium || !list) return;
+
+    podium.innerHTML = '';
+    list.innerHTML = '';
+
+    const rows = top50RowsCache;
+    if (!rows.length) {
+        podium.style.display = 'none';
+        list.innerHTML = '<li class="empty-state">No plays in this range yet.</li>';
+        if (playAllBtn) playAllBtn.disabled = true;
+        return;
+    }
+    podium.style.display = '';
+    if (playAllBtn) playAllBtn.disabled = false;
+
+    const maxPlaytime = rows[0].playtime || 1;
+    const medals = ['🥇', '🥈', '🥉'];
+    const podiumClasses = ['podium-1', 'podium-2', 'podium-3'];
+
+    rows.slice(0, 3).forEach((item, i) => {
+        const card = document.createElement('div');
+        card.className = `podium-card ${podiumClasses[i]}`;
+        const coverUrl = getCoverArtUrl(item.album_id || item.track_id);
+        card.innerHTML = `
+            <span class="podium-medal">${medals[i]}</span>
+            <div class="podium-cover-wrap">
+                <img class="podium-cover" src="${coverUrl}" onerror="this.src='${COVER_PLACEHOLDER}'">
+                <button class="podium-play" title="Play">▶</button>
+            </div>
+            <span class="podium-rank">#${i + 1}</span>
+            <span class="podium-name">${escapeHtml(item.track_name)}</span>
+            <span class="podium-artist">${escapeHtml(item.artist_name)}</span>
+            <span class="podium-stat">${formatPlaytime(item.playtime)}</span>
+        `;
+        const playHandler = (e) => {
+            e.stopPropagation();
+            playTrackFromListing(item.track_name, item.artist_name, item.album_name, coverUrl, item.playtime, item.track_id, item.album_id);
+        };
+        card.querySelector('.podium-play').addEventListener('click', playHandler);
+        card.addEventListener('click', playHandler);
+        podium.appendChild(card);
+    });
+
+    const playingId = (player && player.currentTrack) ? player.currentTrack.track_id : null;
+
+    rows.slice(3).forEach((item, i) => {
+        const rank = i + 4;
+        const li = document.createElement('li');
+        li.className = 'top50-row';
+        li.dataset.tid = item.track_id || '';
+        li.dataset.rank = String(rank).padStart(2, '0');
+        if (playingId && item.track_id && item.track_id === playingId) li.classList.add('now-playing');
+
+        const coverUrl = getCoverArtUrl(item.album_id || item.track_id);
+        const pct = maxPlaytime > 0 ? Math.max(3, Math.round((item.playtime / maxPlaytime) * 100)) : 0;
+        li.innerHTML = `
+            <span class="top50-rank">${li.dataset.rank}</span>
+            <img class="top50-cover" src="${coverUrl}" onerror="this.src='${COVER_PLACEHOLDER}'">
+            <div class="top50-info">
+                <span class="top50-name">${escapeHtml(item.track_name)}</span>
+                <span class="top50-artist">${escapeHtml(item.artist_name)}</span>
+                <div class="popularity-bar"><div class="popularity-fill" style="width:0%"></div></div>
+            </div>
+            <div class="top50-stats">
+                <span class="top50-playtime">${formatPlaytime(item.playtime)}</span>
+                <span class="top50-plays">${item.plays || 0} plays</span>
+            </div>
+            <button class="inline-play-btn" title="Play">▶</button>
+        `;
+        requestAnimationFrame(() => {
+            const fill = li.querySelector('.popularity-fill');
+            if (fill) fill.style.width = pct + '%';
+        });
+        if (li.classList.contains('now-playing')) {
+            const rankEl = li.querySelector('.top50-rank');
+            if (rankEl) rankEl.textContent = '';
+        }
+        const playHandler = (e) => {
+            e.stopPropagation();
+            playTrackFromListing(item.track_name, item.artist_name, item.album_name, coverUrl, item.playtime, item.track_id, item.album_id);
+        };
+        li.querySelector('.inline-play-btn').addEventListener('click', playHandler);
+        li.addEventListener('click', playHandler);
+        list.appendChild(li);
+    });
+}
+
+function updateTop50NowPlaying() {
+    const id = (player && player.currentTrack) ? player.currentTrack.track_id : null;
+    document.querySelectorAll('#top50-list .top50-row').forEach(row => {
+        const isPlaying = !!(id && row.dataset.tid && row.dataset.tid === id);
+        row.classList.toggle('now-playing', isPlaying);
+        const rankEl = row.querySelector('.top50-rank');
+        if (rankEl) rankEl.textContent = isPlaying ? '' : (row.dataset.rank || '');
+    });
+}
+
+document.querySelectorAll('#top50-scope-toggle .scope-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadTop50(btn.dataset.scope));
+});
+
+document.getElementById('top50-play-all')?.addEventListener('click', () => {
+    if (!top50RowsCache.length) return;
+    const tracks = top50RowsCache.map(r => ({
+        track_id: r.track_id || '',
+        track_name: r.track_name,
+        artist_name: r.artist_name,
+        album_name: r.album_name || '',
+        cover_url: getCoverArtUrl(r.album_id || r.track_id),
+        duration: r.duration || 0,
+        stream_url: r.track_id ? `/api/stream/${r.track_id}` : ''
+    }));
+    initPlayer().playAllTracks(tracks);
+    showToast(`Playing top ${tracks.length} tracks`, 'info');
 });
 
 document.getElementById('global-time-toggler').addEventListener('change', (e) => {
     currentTimeFilter = e.target.value;
-    fetchSummary(currentTimeFilter);
-    fetchChartData();
-    fetchList('tracks', currentTimeFilter);
     fetchList('albums', currentTimeFilter);
     fetchList('artists', currentTimeFilter);
     if (document.getElementById('tab-insights').classList.contains('active')) {
@@ -230,14 +441,6 @@ document.getElementById('global-time-toggler').addEventListener('change', (e) =>
     }
     if (searchInput.value.trim()) performSearch();
 });
-
-async function fetchSummary(filter) {
-    const res = await fetch(`/api/stats/summary?filter=${filter}`);
-    const data = await res.json();
-    animateNumber('total-plays', data.plays || 0);
-    document.getElementById('total-playtime').innerText = formatPlaytime(data.playtime || 0);
-    animateNumber('total-views', data.views || 0);
-}
 
 function animateNumber(id, target) {
     const el = document.getElementById(id);
@@ -1246,9 +1449,8 @@ registerSW();
 initMobileNav();
 initSwipeNavigation();
 initScrollReveal();
-fetchSummary(currentTimeFilter);
-fetchChartData();
-fetchList('tracks', currentTimeFilter);
+loadThisWeek();
+loadTop50('all');
 fetchList('albums', currentTimeFilter);
 fetchList('artists', currentTimeFilter);
 fetchNowPlaying();
@@ -1257,6 +1459,7 @@ loadTimeline(true);
 
 // Sync expanded player info with mini player
 setInterval(() => {
+  updateTop50NowPlaying();
   const p = player;
   if (!p || !p.currentTrack || !p.isPlaying) return;
   const track = p.currentTrack;
