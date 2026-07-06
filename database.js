@@ -38,40 +38,49 @@ if (!naviDb) {
     console.warn("Warning: Navidrome database not found/configured. Please link your Navidrome database to enable track duration lookups.");
 }
 
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_name TEXT,
-        track_name TEXT,
-        artist_name TEXT,
-        album_name TEXT,
-        track_id TEXT,
-        album_id TEXT,
-        artist_id TEXT,
-        duration INTEGER,
-        genre TEXT DEFAULT '',
-        event_type TEXT,
-        timestamp INTEGER
-    )`);
+// Resolves once the schema is fully initialised. Consumers should `await ready()`
+// before serving traffic so early writes don't fail against a half-built schema.
+const ready = new Promise((resolve) => {
+    let pending = 4;
+    const tick = () => { if (--pending === 0) resolve(); };
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_name TEXT,
+            track_name TEXT,
+            artist_name TEXT,
+            album_name TEXT,
+            track_id TEXT,
+            album_id TEXT,
+            artist_id TEXT,
+            duration INTEGER,
+            genre TEXT DEFAULT '',
+            event_type TEXT,
+            timestamp INTEGER
+        )`, tick);
 
-    db.run(`ALTER TABLE history ADD COLUMN genre TEXT DEFAULT ''`, (err) => {
-        if (err && !err.message.includes('duplicate column')) {
-            console.error('Alter table error:', err.message);
-        }
-    });
+        db.run(`ALTER TABLE history ADD COLUMN genre TEXT DEFAULT ''`, (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+                console.error('Alter table error:', err.message);
+            }
+            tick();
+        });
 
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )`);
+        db.run(`CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )`, tick);
 
-    db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
-        if (err) {
-            console.error('Settings query error:', err.message);
-        } else if (!row) {
-            db.run(`INSERT INTO settings (key, value) VALUES ('utc_offset', '5.5')`);
-        }
+        db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
+            if (err) {
+                console.error('Settings query error:', err.message);
+            } else if (!row) {
+                db.run(`INSERT INTO settings (key, value) VALUES ('utc_offset', '5.5')`, tick);
+                return;
+            }
+            tick();
+        });
     });
 });
 
-module.exports = { db, naviDb };
+module.exports = { db, naviDb, ready };

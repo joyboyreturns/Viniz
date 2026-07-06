@@ -2,8 +2,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
-const { db, naviDb } = require('./database');
+const { db, naviDb, ready: dbReady } = require('./database');
 
 let utcOffset = 5.5;
 db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
@@ -515,6 +516,18 @@ app.get('/api/cover-art/:id', (req, res) => {
     if (!req.params.id) {
         return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
     }
+    // Local cover art assets shipped with the app (e.g. /api/cover-art/manchild.svg)
+    if (req.params.id.endsWith('.svg') || req.params.id.endsWith('.png') || req.params.id.endsWith('.jpg') || req.params.id.endsWith('.jpeg') || req.params.id.endsWith('.webp')) {
+        const safeName = path.basename(req.params.id);
+        const localPath = path.join(__dirname, 'public', 'covers', safeName);
+        if (fs.existsSync(localPath)) {
+            const ext = path.extname(localPath).slice(1).toLowerCase();
+            const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+            res.set('Content-Type', mime);
+            res.set('Cache-Control', 'public, max-age=86400');
+            return fs.createReadStream(localPath).pipe(res);
+        }
+    }
     const navHost = process.env.NAVIDROME_HOST || 'localhost';
     const navPort = process.env.NAVIDROME_PORT || '4533';
     const navUser = process.env.NAVIDROME_USER || '';
@@ -980,7 +993,12 @@ app.get('/api/stats/mood-calendar', (req, res) => {
     });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('Viniz server running on port ' + PORT);
-    backfillAlbumIds();
+dbReady.then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log('Viniz server running on port ' + PORT);
+        backfillAlbumIds();
+    });
+}).catch(err => {
+    console.error('Database initialization failed:', err);
+    process.exit(1);
 });

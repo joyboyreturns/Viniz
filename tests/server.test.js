@@ -49,12 +49,13 @@ test.describe('Server Integration Test', () => {
             artist_id TEXT,
             duration INTEGER,
             title TEXT,
-            artist TEXT
+            artist TEXT,
+            genre TEXT DEFAULT ''
         )`);
-        
+
         // Pre-populate test_navidrome.db with a mock track in media_file
-        naviDb.prepare(`INSERT OR REPLACE INTO media_file (id, album_id, artist_id, duration, title, artist)
-                        VALUES (?, ?, ?, ?, ?, ?)`).run('t1', 'al1', 'ar1', 180, 'Track A', 'Artist A');
+        naviDb.prepare(`INSERT OR REPLACE INTO media_file (id, album_id, artist_id, duration, title, artist, genre)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)`).run('mc1', 'mc_album', 'mc_artist', 215, 'Manchild', 'Sabrina Carpenter', 'pop');
         naviDb.close();
     });
 
@@ -191,9 +192,9 @@ test.describe('Server Integration Test', () => {
                 payload: [
                     {
                         track_metadata: {
-                            track_name: 'Track A',
-                            artist_name: 'Artist A',
-                            release_name: 'Album A'
+                            track_name: 'Manchild',
+                            artist_name: 'Sabrina Carpenter',
+                            release_name: 'Manchild'
                         }
                     }
                 ]
@@ -217,23 +218,23 @@ test.describe('Server Integration Test', () => {
             });
         };
 
-        // Poll history table until Track A is inserted (as db.run is async in Express)
+        // Poll history table until Manchild is inserted (as db.run is async in Express)
         let rows1 = [];
         for (let i = 0; i < 20; i++) {
-            rows1 = await queryDb("SELECT * FROM history WHERE track_name = 'Track A'");
+            rows1 = await queryDb("SELECT * FROM history WHERE track_name = 'Manchild'");
             if (rows1.length > 0) break;
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         assert.strictEqual(rows1.length, 1);
         const row1 = rows1[0];
         assert.strictEqual(row1.user_name, 'User Vincent');
-        assert.strictEqual(row1.track_name, 'Track A');
-        assert.strictEqual(row1.artist_name, 'Artist A');
-        assert.strictEqual(row1.album_name, 'Album A');
-        assert.strictEqual(row1.track_id, 't1');
-        assert.strictEqual(row1.album_id, 'al1');
-        assert.strictEqual(row1.artist_id, 'ar1');
-        assert.strictEqual(row1.duration, 180);
+        assert.strictEqual(row1.track_name, 'Manchild');
+        assert.strictEqual(row1.artist_name, 'Sabrina Carpenter');
+        assert.strictEqual(row1.album_name, 'Manchild');
+        assert.strictEqual(row1.track_id, 'mc1');
+        assert.strictEqual(row1.album_id, 'mc_album');
+        assert.strictEqual(row1.artist_id, 'mc_artist');
+        assert.strictEqual(row1.duration, 215);
         assert.strictEqual(row1.event_type, 'play');
 
         // B. Ingestion with Fallback Duration
@@ -248,9 +249,9 @@ test.describe('Server Integration Test', () => {
                 payload: [
                     {
                         track_metadata: {
-                            track_name: 'Track B',
-                            artist_name: 'Artist B',
-                            release_name: 'Album B',
+                            track_name: 'Taste',
+                            artist_name: 'Sabrina Carpenter',
+                            release_name: "Short n' Sweet",
                             additional_info: {
                                 duration_ms: 240000
                             }
@@ -263,7 +264,7 @@ test.describe('Server Integration Test', () => {
 
         let rows2 = [];
         for (let i = 0; i < 20; i++) {
-            rows2 = await queryDb("SELECT * FROM history WHERE track_name = 'Track B'");
+            rows2 = await queryDb("SELECT * FROM history WHERE track_name = 'Taste'");
             if (rows2.length > 0) break;
             await new Promise(resolve => setTimeout(resolve, 100));
         }
@@ -284,11 +285,11 @@ test.describe('Server Integration Test', () => {
                 payload: [
                     {
                         track_metadata: {
-                            track_name: 'Track C',
-                            artist_name: 'Artist C',
-                            release_name: 'Album C',
+                            track_name: 'Espresso',
+                            artist_name: 'Sabrina Carpenter',
+                            release_name: "Short n' Sweet",
                             additional_info: {
-                                duration_ms: 300000
+                                duration_ms: 175000
                             }
                         }
                     }
@@ -299,7 +300,7 @@ test.describe('Server Integration Test', () => {
 
         let rows3 = [];
         for (let i = 0; i < 20; i++) {
-            rows3 = await queryDb("SELECT * FROM history WHERE track_name = 'Track C'");
+            rows3 = await queryDb("SELECT * FROM history WHERE track_name = 'Espresso'");
             if (rows3.length > 0) break;
             await new Promise(resolve => setTimeout(resolve, 100));
         }
