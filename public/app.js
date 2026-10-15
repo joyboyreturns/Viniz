@@ -1514,7 +1514,7 @@ function initMobileNav() {
 // ── Swipe Navigation ──
 function initSwipeNavigation() {
   let touchStartX = 0, touchStartY = 0;
-  const tabOrder = ['dashboard', 'discover', 'insights', 'library', 'year'];
+  const tabOrder = ['dashboard', 'discover', 'music', 'insights', 'library', 'year'];
   
   document.addEventListener('touchstart', (e) => {
     if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || 
@@ -1566,6 +1566,7 @@ function switchTab(tabName) {
   if (tabName === 'history') loadHistoryTable();
   if (tabName === 'library') loadLibrary();
   if (tabName === 'discover') loadDiscoverTab();
+  if (tabName === 'music' && window.loadVinizMusic) window.loadVinizMusic();
   if (tabName === 'year') loadYearTab();
 }
 

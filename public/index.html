@@ -9,6 +9,7 @@
     <title>Viniz - Music Stats</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="player.css">
+    <link rel="stylesheet" href="music.css">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -48,6 +49,7 @@
             <nav class="tab-nav" id="tab-nav">
                 <button class="tab-btn active" data-tab="dashboard">Home</button>
                 <button class="tab-btn" data-tab="discover">Discover</button>
+                <button class="tab-btn" data-tab="music">Music</button>
                 <button class="tab-btn" data-tab="timeline">Timeline</button>
                 <button class="tab-btn" data-tab="insights">Insights</button>
                 <button class="tab-btn" data-tab="history">History</button>
@@ -70,6 +72,70 @@
                 <div class="list-header"><h2>Artists</h2></div>
                 <ul id="search-artists-list" class="stats-list compact-list"></ul>
             </div>
+        </main>
+
+        <!-- MUSIC DISCOVERY + NAVIDROME LIBRARY -->
+        <main class="tab-panel" id="tab-music">
+            <section class="music-hero">
+                <div class="music-hero-copy">
+                    <span class="music-eyebrow">YOUR SOUND, ALL IN ONE PLACE</span>
+                    <h2>Find your next<br><span>favorite song.</span></h2>
+                    <p>Explore current music, preview it on its source, then add music you have the right to keep to Navidrome.</p>
+                    <form id="music-search-form" class="music-search">
+                        <span aria-hidden="true">⌕</span>
+                        <input id="music-search-input" type="search" placeholder="Search a song or artist" aria-label="Search songs and artists">
+                        <button type="submit">Search</button>
+                    </form>
+                </div>
+                <div class="music-hero-art" aria-hidden="true">
+                    <div class="music-orbit orbit-one"></div><div class="music-orbit orbit-two"></div>
+                    <div class="music-record"><div class="record-label"><span>VINIZ</span><i>♪</i></div></div>
+                    <div class="music-note note-one">♫</div><div class="music-note note-two">♪</div>
+                </div>
+            </section>
+
+            <section class="music-discovery-section">
+                <div class="music-section-heading">
+                    <div><span class="music-eyebrow">OUT IN THE WORLD</span><h2>Discover music</h2></div>
+                    <div class="music-source-tabs" role="tablist" aria-label="Music source">
+                        <button class="music-source-btn active" data-source="youtube">YouTube</button>
+                        <button class="music-source-btn" data-source="spotify">Spotify</button>
+                    </div>
+                </div>
+                <div class="music-feed-tabs" role="tablist" aria-label="Music feed">
+                    <button class="music-feed-btn active" data-feed="trending">Trending</button>
+                    <button class="music-feed-btn" data-feed="recent">New releases</button>
+                </div>
+                <div id="music-source-status" class="music-source-status" aria-live="polite"></div>
+                <div id="music-results" class="music-results-grid"><div class="music-loading">Loading music…</div></div>
+                <div id="music-video-player" class="music-video-player hidden"></div>
+            </section>
+
+            <section class="music-library-section">
+                <div class="music-section-heading">
+                    <div><span class="music-eyebrow">YOUR NAVIDROME COLLECTION</span><h2>Music storage</h2></div>
+                    <button id="music-refresh-library" class="music-quiet-btn">↻ Refresh</button>
+                </div>
+                <div id="music-storage-overview" class="music-storage-overview"></div>
+                <div class="music-storage-columns">
+                    <div class="music-storage-card"><h3>Largest artists</h3><div id="music-largest-artists"></div></div>
+                    <div class="music-storage-card"><h3>Largest albums</h3><div id="music-largest-albums"></div></div>
+                </div>
+                <div class="music-library-controls">
+                    <div class="music-library-tabs" role="tablist" aria-label="Library view">
+                        <button class="music-library-btn active" data-group="tracks">Songs</button>
+                        <button class="music-library-btn" data-group="albums">Albums</button>
+                        <button class="music-library-btn" data-group="artists">Artists</button>
+                    </div>
+                    <input id="music-library-search" type="search" placeholder="Filter your library" aria-label="Filter your library">
+                    <select id="music-library-sort" aria-label="Sort music">
+                        <option value="size">Largest first</option><option value="name">Name</option>
+                        <option value="artist">Artist</option><option value="recent">Recently updated</option>
+                    </select>
+                </div>
+                <div id="music-library-list" class="music-library-list"></div>
+                <div class="music-library-footer"><button id="music-library-more" class="music-quiet-btn hidden">Load more</button><span id="music-library-count"></span></div>
+            </section>
         </main>
 
         <!-- DASHBOARD TAB -->
@@ -464,6 +530,10 @@
             <span class="nav-icon">🔍</span>
             <span>Discover</span>
         </button>
+        <button class="mobile-nav-btn" data-mtab="music">
+            <span class="nav-icon">♫</span>
+            <span>Music</span>
+        </button>
         <button class="mobile-nav-btn" data-mtab="insights">
             <span class="nav-icon">📈</span>
             <span>Insights</span>
@@ -568,5 +638,6 @@
     <div id="toast-container" class="toast-container"></div>
     <script src="player.js"></script>
     <script src="app.js"></script>
+    <script src="music.js"></script>
 </body>
 </html>

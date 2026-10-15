@@ -8,6 +8,7 @@ const BetterSqlite3 = require('better-sqlite3');
 const fixturesDir = path.join(__dirname, 'fixtures');
 const vinizDbPath = path.join(fixturesDir, 'test_viniz.db');
 const navidromeDbPath = path.join(fixturesDir, 'test_navidrome.db');
+const musicDir = path.join(fixturesDir, 'music');
 
 function cleanup() {
     const files = [
@@ -27,6 +28,7 @@ function cleanup() {
             // ignore
         }
     }
+    fs.rmSync(musicDir, { recursive: true, force: true });
 }
 
 test.describe('Server Integration Test', () => {
@@ -45,17 +47,25 @@ test.describe('Server Integration Test', () => {
         const naviDb = new BetterSqlite3(navidromeDbPath);
         naviDb.exec(`CREATE TABLE IF NOT EXISTS media_file (
             id TEXT PRIMARY KEY,
+            path TEXT DEFAULT '',
             album_id TEXT,
             artist_id TEXT,
             duration INTEGER,
             title TEXT,
             artist TEXT,
+            album TEXT DEFAULT '',
+            album_artist TEXT DEFAULT '',
+            size INTEGER DEFAULT 0,
+            missing BOOLEAN DEFAULT 0,
+            updated_at TEXT DEFAULT '',
             genre TEXT DEFAULT ''
         )`);
 
         // Pre-populate test_navidrome.db with a mock track in media_file
-        naviDb.prepare(`INSERT OR REPLACE INTO media_file (id, album_id, artist_id, duration, title, artist, genre)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)`).run('mc1', 'mc_album', 'mc_artist', 215, 'Manchild', 'Sabrina Carpenter', 'pop');
+        fs.mkdirSync(path.join(musicDir, 'Sabrina Carpenter', 'Manchild'), { recursive: true });
+        fs.writeFileSync(path.join(musicDir, 'Sabrina Carpenter', 'Manchild', 'Manchild.mp3'), 'fixture audio');
+        naviDb.prepare(`INSERT OR REPLACE INTO media_file (id, path, album_id, artist_id, duration, title, artist, album, album_artist, size, missing, updated_at, genre)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run('mc1', 'Sabrina Carpenter/Manchild/Manchild.mp3', 'mc_album', 'mc_artist', 215, 'Manchild', 'Sabrina Carpenter', 'Manchild', 'Sabrina Carpenter', 4096, 0, '2026-10-01 00:00:00', 'pop');
         naviDb.close();
     });
 
@@ -84,12 +94,13 @@ test.describe('Server Integration Test', () => {
 
     test('should spawn server and respond to validate-token', async () => {
         // Spawn the Express server (node server.js) passing isolated environment variables
-        serverProcess = spawn('node', ['server.js'], {
+        serverProcess = spawn(process.execPath, ['server.js'], {
             cwd: path.join(__dirname, '..'),
             env: {
                 ...process.env,
                 VINIZ_DB_PATH: vinizDbPath,
-                NAVIDROME_DB_PATH: navidromeDbPath
+                NAVIDROME_DB_PATH: navidromeDbPath,
+                MUSIC_LIBRARY_PATH: musicDir
             }
         });
 
@@ -128,7 +139,7 @@ test.describe('Server Integration Test', () => {
 
     test('should start up successfully on default startup without env variables and print warning', async () => {
         // Spawn with no database environment variables (purging VINIZ_DB_PATH and NAVIDROME_DB_PATH) but specifying PORT
-        const defaultProcess = spawn('node', ['server.js'], {
+        const defaultProcess = spawn(process.execPath, ['server.js'], {
             cwd: path.join(__dirname, '..'),
             env: {
                 PATH: process.env.PATH,
@@ -170,6 +181,28 @@ test.describe('Server Integration Test', () => {
 
         assert.strictEqual(connected, true, 'Server failed to start up successfully on defaults without env variables');
         assert.strictEqual(warningLogged, true, `Expected Navidrome missing warning in stderr, but got: ${stderrOutput}`);
+    });
+
+    test('music library returns storage totals and grouped rows from Navidrome', async () => {
+        const res = await fetch('http://localhost:4096/api/music/library?group=tracks');
+        assert.strictEqual(res.status, 200);
+        const body = await res.json();
+        assert.strictEqual(body.summary.tracks, 1);
+        assert.strictEqual(body.summary.bytes, 4096);
+        assert.strictEqual(body.rows[0].name, 'Manchild');
+        assert.strictEqual(body.rows[0].artist, 'Sabrina Carpenter');
+    });
+
+    test('music delete removes the file and hides it from the library immediately', async () => {
+        const trackPath = path.join(musicDir, 'Sabrina Carpenter', 'Manchild', 'Manchild.mp3');
+        assert.strictEqual(fs.existsSync(trackPath), true);
+        const res = await fetch('http://localhost:4096/api/music/library/mc1', { method: 'DELETE' });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(fs.existsSync(trackPath), false);
+        const libraryResponse = await fetch('http://localhost:4096/api/music/library?group=tracks');
+        const library = await libraryResponse.json();
+        assert.strictEqual(library.summary.tracks, 0);
+        assert.strictEqual(library.rows.length, 0);
     });
 
     test('should return nulls when stats summary is queried on empty database', async () => {

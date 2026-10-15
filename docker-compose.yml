@@ -9,6 +9,8 @@ services:
       - ./data:/app/data
       # Replace with the path to your Navidrome data directory
       - /mnt/cloud_storage/nextcloud/navidrome_data:/app/navidrome:ro
+      - /mnt/cloud_storage/music:/music:rw
+      - /mnt/cloud_storage/scripts/import-music.py:/app/import-music.py:ro
     environment:
       - NODE_ENV=production
       - NAVIDROME_DB_PATH=/app/navidrome/navidrome.db
@@ -16,6 +18,13 @@ services:
       - NAVIDROME_PORT=4533
       - NAVIDROME_USER=Vincent
       - NAVIDROME_PASS=dog
+      - MUSIC_LIBRARY_PATH=/music
+      - MUSIC_IMPORT_SCRIPT=/app/import-music.py
+      - MUSIC_IMPORT_PYTHON=/opt/music-env/bin/python
+      - MUSIC_IMPORT_ENABLED=true
+      - MUSIC_REGION=${MUSIC_REGION:-US}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4096/apis/listenbrainz/1/validate-token"]
       interval: 30s

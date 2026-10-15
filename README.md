@@ -71,6 +71,22 @@ Steps:
 - **Search**: Quickly find specific artists, albums, or tracks.
 - **Local First**: Everything stays on your local network. No external services required.
 
+## Music discovery and library management
+
+Viniz can also show popular and recent YouTube music videos, Spotify search and new releases, and a sortable view of the music indexed by Navidrome. YouTube discovery uses `yt-dlp` to search public YouTube metadata and needs no API key; results are cached for ten minutes to limit requests. Popular and recent feeds are ranked YouTube searches, not official chart positions. YouTube videos play through YouTube's embedded player. Spotify previews appear only when Spotify provides a preview clip; otherwise, the card opens Spotify. Spotify credentials stay in the server environment.
+
+To enable Spotify discovery, copy `.env.example` to `.env` (keep `.env` private) and add credentials from a Spotify developer app:
+
+```dotenv
+MUSIC_REGION=US
+SPOTIFY_CLIENT_ID=your-spotify-client-id
+SPOTIFY_CLIENT_SECRET=your-spotify-client-secret
+```
+
+YouTube discovery and the Navidrome storage view need no provider credentials. Restart Viniz after changing Spotify credentials.
+
+The import action is enabled in the local Docker Compose setup. It asks for confirmation that you are authorized to download the selected recording, then uses the existing `scripts/import-music.py` workflow. It does not download audio through Spotify. Navidrome scans the music folder on its configured schedule. Deleting a song permanently removes its audio file (and its matching `.lrc` sidecar) from `/mnt/cloud_storage/music`; Viniz hides it immediately while Navidrome updates its index on its next scan.
+
 ## License
 
 Copyright (c) 2026 joyboyreturns. All Rights Reserved.

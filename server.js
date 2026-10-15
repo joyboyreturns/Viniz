@@ -4,7 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { spawn } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const { randomUUID } = require('crypto');
 const { db, naviDb, ready: dbReady } = require('./database');
+const execFileAsync = promisify(execFile);
 
 let utcOffset = 5.5;
 db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
@@ -19,6 +24,224 @@ const PORT = process.env.PORT || 4096;
 app.use(cors());
 app.use(bodyParser.json({limit: '50mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// A short-lived token cache keeps Spotify credentials on the server and avoids
+// requesting a new token for every discovery refresh.
+let spotifyToken = '';
+let spotifyTokenExpiresAt = 0;
+const musicImportJobs = new Map();
+let activeMusicImport = false;
+const recentlyDeletedMusic = new Map();
+const youtubeDiscoveryCache = new Map();
+
+async function discoverYouTubeMusic(feed, query) {
+    const mode = feed === 'search' ? `search:${query}` : feed;
+    const cached = youtubeDiscoveryCache.get(mode);
+    if (cached && cached.expiresAt > Date.now()) return cached.items;
+
+    const searchTerm = feed === 'search'
+        ? query
+        : feed === 'recent'
+            ? `new official music video ${new Date().getFullYear()}`
+            : `trending popular music videos ${new Date().getFullYear()}`;
+    const ytDlpPath = process.env.MUSIC_YTDLP_PATH || '/opt/music-env/bin/yt-dlp';
+    const searchPrefix = feed === 'recent' ? 'ytsearchdate24:' : 'ytsearch24:';
+    const { stdout } = await execFileAsync(ytDlpPath, [
+        '--no-config', '--flat-playlist', '--dump-single-json', '--no-warnings',
+        '--no-call-home', '--skip-download', '--sleep-requests', '1', `${searchPrefix}${searchTerm}`
+    ], { timeout: 30_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+    const result = JSON.parse(stdout);
+    const items = (result.entries || []).filter(item => item && item.id).map(item => {
+        const url = item.webpage_url || `https://www.youtube.com/watch?v=${encodeURIComponent(item.id)}`;
+        return {
+            id: item.id,
+            title: item.title || 'Untitled',
+            artist: item.channel || item.uploader || 'YouTube',
+            image: item.thumbnail || item.thumbnails?.at(-1)?.url || '',
+            url,
+            embedUrl: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(item.id)}`,
+            publishedAt: item.release_timestamp ? new Date(item.release_timestamp * 1000).toISOString() :
+                item.upload_date && /^\d{8}$/.test(item.upload_date) ? `${item.upload_date.slice(0, 4)}-${item.upload_date.slice(4, 6)}-${item.upload_date.slice(6, 8)}` : '',
+            views: Number(item.view_count) || 0,
+            provider: 'YouTube'
+        };
+    });
+    // Cache public search results to keep refreshes responsive and reduce requests to YouTube.
+    if (youtubeDiscoveryCache.size >= 64) youtubeDiscoveryCache.delete(youtubeDiscoveryCache.keys().next().value);
+    youtubeDiscoveryCache.set(mode, { items, expiresAt: Date.now() + 10 * 60_000 });
+    return items;
+}
+
+async function getSpotifyToken() {
+    if (spotifyToken && Date.now() < spotifyTokenExpiresAt - 30_000) return spotifyToken;
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return null;
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=client_credentials',
+        signal: AbortSignal.timeout(10_000)
+    });
+    if (!tokenResponse.ok) throw new Error(`Spotify authentication failed (${tokenResponse.status})`);
+    const tokenData = await tokenResponse.json();
+    spotifyToken = tokenData.access_token;
+    spotifyTokenExpiresAt = Date.now() + (tokenData.expires_in || 3600) * 1000;
+    return spotifyToken;
+}
+
+app.get('/api/music/config', (req, res) => {
+    res.json({
+        spotify: Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET),
+        youtube: true,
+        import: process.env.MUSIC_IMPORT_ENABLED === 'true',
+        library: Boolean(naviDb && process.env.MUSIC_LIBRARY_PATH)
+    });
+});
+
+app.get('/api/music/discover', async (req, res) => {
+    const source = req.query.source === 'youtube' ? 'youtube' : 'spotify';
+    const feed = ['trending', 'recent', 'search'].includes(req.query.feed) ? req.query.feed : 'trending';
+    const query = String(req.query.q || '').trim().slice(0, 120);
+    try {
+        if (source === 'youtube') {
+            const items = await discoverYouTubeMusic(feed, query || 'music');
+            return res.json({ source, items });
+        }
+
+        const token = await getSpotifyToken();
+        if (!token) return res.status(503).json({ error: 'Add Spotify client credentials to enable Spotify discovery.' });
+        const endpoint = feed === 'search'
+            ? `https://api.spotify.com/v1/search?${new URLSearchParams({ q: query, type: 'track', limit: '24' })}`
+            : feed === 'recent'
+                ? `https://api.spotify.com/v1/browse/new-releases?${new URLSearchParams({ limit: '24', country: process.env.MUSIC_REGION || 'US' })}`
+                : `https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDwVN2tF/items?limit=50&market=${encodeURIComponent(process.env.MUSIC_REGION || 'US')}`;
+        const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12_000) });
+        const data = await response.json();
+        if (!response.ok) return res.status(response.status).json({ error: data.error?.message || 'Spotify discovery failed.' });
+        let items = [];
+        if (feed === 'search') items = data.tracks?.items || [];
+        else if (feed === 'recent') {
+            const albums = data.albums?.items || [];
+            items = await Promise.all(albums.slice(0, 12).map(async album => {
+                try {
+                    const albumRes = await fetch(`https://api.spotify.com/v1/albums/${encodeURIComponent(album.id)}/tracks?limit=1`, {
+                        headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8_000)
+                    });
+                    const albumData = await albumRes.json();
+                    return { ...(albumData.items?.[0] || {}), album: { ...album, images: album.images } };
+                } catch (_) { return null; }
+            }));
+            items = items.filter(Boolean);
+        } else items = (data.items || []).map(item => item.item || item.track).filter(Boolean);
+        return res.json({ source, items: items.map(item => ({
+            id: item.id, title: item.name || item.album?.name || 'Untitled', artist: (item.artists || []).map(a => a.name).join(', ') || 'Spotify',
+            album: item.album?.name || '', image: item.album?.images?.[1]?.url || item.album?.images?.[0]?.url || '',
+            previewUrl: item.preview_url || '', url: item.external_urls?.spotify || item.album?.external_urls?.spotify || 'https://open.spotify.com/',
+            publishedAt: item.album?.release_date || '', popularity: item.popularity || 0, provider: 'Spotify'
+        })) });
+    } catch (error) {
+        console.error('Music discovery error:', error.message);
+        res.status(502).json({ error: 'Music discovery service is unavailable right now.' });
+    }
+});
+
+app.get('/api/music/library', (req, res) => {
+    if (!naviDb) return res.status(503).json({ error: 'Navidrome database is not available.' });
+    const group = ['tracks', 'albums', 'artists'].includes(req.query.group) ? req.query.group : 'tracks';
+    const query = String(req.query.q || '').trim().slice(0, 100);
+    const page = Math.min(10000, Math.max(1, parseInt(req.query.page, 10) || 1));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    const sort = ['size', 'name', 'artist', 'recent'].includes(req.query.sort) ? req.query.sort : 'size';
+    const now = Date.now();
+    for (const [id, deletedAt] of recentlyDeletedMusic) if (now - deletedAt > 10 * 60_000) recentlyDeletedMusic.delete(id);
+    const hiddenIds = [...recentlyDeletedMusic.keys()];
+    const hiddenClause = hiddenIds.length ? `AND id NOT IN (${hiddenIds.map((_, i) => `@hidden${i}`).join(',')})` : '';
+    const hiddenParams = Object.fromEntries(hiddenIds.map((id, i) => [`hidden${i}`, id]));
+    try {
+        const summary = naviDb.prepare(`SELECT COUNT(*) AS tracks, COALESCE(SUM(size), 0) AS bytes,
+            COUNT(DISTINCT artist) AS artists, COUNT(DISTINCT album_id) AS albums FROM media_file WHERE missing = 0 ${hiddenClause}`).get(hiddenParams);
+        const groupSql = group === 'artists'
+            ? `SELECT artist AS name, '' AS artist, '' AS album, COUNT(*) AS tracks, SUM(size) AS bytes, '' AS id
+               FROM media_file WHERE missing = 0 ${hiddenClause} ${query ? 'AND artist LIKE @q' : ''} GROUP BY artist`
+            : group === 'albums'
+                ? `SELECT album AS name, album_artist AS artist, album AS album, COUNT(*) AS tracks, SUM(size) AS bytes, album_id AS id
+                   FROM media_file WHERE missing = 0 ${hiddenClause} ${query ? 'AND (album LIKE @q OR artist LIKE @q)' : ''} GROUP BY album_id, album, album_artist`
+                : `SELECT title AS name, artist, album, album_id, duration, size AS bytes, id FROM media_file
+                   WHERE missing = 0 ${hiddenClause} ${query ? 'AND (title LIKE @q OR artist LIKE @q OR album LIKE @q)' : ''}`;
+        const order = sort === 'name' ? 'name COLLATE NOCASE ASC' : sort === 'artist' ? 'artist COLLATE NOCASE ASC, name COLLATE NOCASE ASC' : sort === 'recent' ? (group === 'tracks' ? 'updated_at DESC, name COLLATE NOCASE ASC' : 'MAX(updated_at) DESC, name COLLATE NOCASE ASC') : 'bytes DESC, name COLLATE NOCASE ASC';
+        const rows = naviDb.prepare(`${groupSql} ORDER BY ${order} LIMIT @limit OFFSET @offset`).all({
+            ...hiddenParams, ...(query ? { q: `%${query}%` } : {}), limit, offset: (page - 1) * limit
+        });
+        const countRow = naviDb.prepare(`SELECT COUNT(*) AS total FROM (
+            SELECT ${group === 'artists' ? 'artist' : group === 'albums' ? 'album_id' : 'id'} FROM media_file
+            WHERE missing = 0 ${hiddenClause} ${query ? (group === 'artists' ? 'AND artist LIKE @q' : group === 'albums' ? 'AND (album LIKE @q OR artist LIKE @q)' : 'AND (title LIKE @q OR artist LIKE @q OR album LIKE @q)') : ''}
+            GROUP BY ${group === 'artists' ? 'artist' : group === 'albums' ? 'album_id' : 'id'}
+        )`).get({ ...hiddenParams, ...(query ? { q: `%${query}%` } : {}) });
+        const largestArtists = naviDb.prepare(`SELECT artist AS name, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hiddenClause} GROUP BY artist ORDER BY bytes DESC LIMIT 8`).all(hiddenParams);
+        const largestAlbums = naviDb.prepare(`SELECT album AS name, album_artist AS artist, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hiddenClause} GROUP BY album_id, album, album_artist ORDER BY bytes DESC LIMIT 8`).all(hiddenParams);
+        res.json({ summary, rows, total: countRow.total, page, limit, group, sort, largestArtists, largestAlbums });
+    } catch (error) {
+        console.error('Music library error:', error.message);
+        res.status(500).json({ error: 'Could not read the Navidrome library.' });
+    }
+});
+
+app.post('/api/music/import', (req, res) => {
+    const query = typeof req.body?.query === 'string' ? req.body.query.trim() : '';
+    if (!query || query.length > 200) return res.status(400).json({ error: 'Enter an artist and track name (up to 200 characters).' });
+    if (req.body?.authorized !== true) return res.status(400).json({ error: 'Confirm you have the right to download this audio.' });
+    if (process.env.MUSIC_IMPORT_ENABLED !== 'true') return res.status(503).json({ error: 'Music importing is not enabled on this server.' });
+    if (activeMusicImport) return res.status(409).json({ error: 'An import is already running. Try again when it finishes.' });
+    const scriptPath = process.env.MUSIC_IMPORT_SCRIPT || '/app/import-music.py';
+    const python = process.env.MUSIC_IMPORT_PYTHON || '/opt/music-env/bin/python';
+    const id = randomUUID();
+    const job = { id, query, status: 'running', output: '', startedAt: new Date().toISOString() };
+    musicImportJobs.set(id, job);
+    activeMusicImport = true;
+    const child = spawn(python, [scriptPath, query], { env: { ...process.env, MUSIC_DIR: process.env.MUSIC_LIBRARY_PATH || '/music', MUSIC_SKIP_PERMISSION_FIX: 'true' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const append = chunk => { job.output = (job.output + chunk.toString()).slice(-8000); };
+    child.stdout.on('data', append);
+    child.stderr.on('data', append);
+    child.on('error', error => { job.status = 'failed'; job.output += `\n${error.message}`; activeMusicImport = false; });
+    child.on('close', code => {
+        if (job.status === 'running') job.status = code === 0 ? 'complete' : 'failed';
+        job.exitCode = code;
+        job.finishedAt = new Date().toISOString();
+        activeMusicImport = false;
+        if (musicImportJobs.size > 25) musicImportJobs.delete(musicImportJobs.keys().next().value);
+    });
+    res.status(202).json({ id, status: job.status });
+});
+
+app.get('/api/music/import/:id', (req, res) => {
+    const job = musicImportJobs.get(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Import job not found.' });
+    res.json(job);
+});
+
+app.delete('/api/music/library/:id', (req, res) => {
+    if (!naviDb || !process.env.MUSIC_LIBRARY_PATH) return res.status(503).json({ error: 'Writable music library is not configured.' });
+    try {
+        const row = naviDb.prepare('SELECT id, path, title, artist FROM media_file WHERE id = ? AND missing = 0').get(req.params.id);
+        if (!row) return res.status(404).json({ error: 'Track not found in the library.' });
+        const root = path.resolve(process.env.MUSIC_LIBRARY_PATH);
+        const trackPath = path.resolve(root, row.path);
+        if (!trackPath.startsWith(root + path.sep)) return res.status(400).json({ error: 'Invalid library path.' });
+        if (!fs.existsSync(trackPath)) return res.status(404).json({ error: 'The track file is already missing.' });
+        fs.unlinkSync(trackPath);
+        recentlyDeletedMusic.set(row.id, Date.now());
+        for (const ext of ['.lrc', '.jpg', '.jpeg', '.png', '.webp']) {
+            const companion = path.join(path.dirname(trackPath), path.basename(trackPath, path.extname(trackPath)) + ext);
+            if (fs.existsSync(companion) && ext === '.lrc') fs.unlinkSync(companion);
+        }
+        res.json({ deleted: true, id: row.id, title: row.title, artist: row.artist, message: 'Track file removed. Navidrome will update its index on the next library scan.' });
+    } catch (error) {
+        console.error('Music delete error:', error.message);
+        res.status(500).json({ error: 'Could not delete this music file.' });
+    }
+});
 
 app.get('/apis/listenbrainz/1/validate-token', (req, res) => {
     res.status(200).json({
