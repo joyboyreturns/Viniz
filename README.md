@@ -64,12 +64,14 @@ Steps:
 
 ## Features
 
-- **Beautiful UI**: Modern, glassmorphism dashboard.
+- **Consistent UI**: Shared studio design across Music, Listening, For you, Timeline, Insights, History, Library and Year. Dark and light themes, responsive artwork grids, charts, tables and dialogs.
 - **Top Stats**: View your most played tracks, albums, and artists.
 - **Filtering**: Filter by Today, Last 7 Days, Last Month, etc.
 - **Data Export/Import**: Easily backup and restore your listening history in JSON format.
 - **Search**: Quickly find specific artists, albums, or tracks.
 - **Local First**: Everything stays on your local network. No external services required.
+
+The shared visual system lives in `public/studio.css`, loaded after the base layout and music workspace styles. All eight tabs are directly accessible in the mobile navigation.
 
 ## Music discovery and library management
 

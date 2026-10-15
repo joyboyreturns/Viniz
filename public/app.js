@@ -62,7 +62,7 @@ function showToast(message, type) {
 function initTheme() {
     const savedTheme = localStorage.getItem('theme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initialTheme = savedTheme || 'light';
+    const initialTheme = savedTheme || 'dark';
     document.documentElement.setAttribute('data-theme', initialTheme);
     updateThemeButton();
 }
@@ -80,7 +80,7 @@ function updateThemeButton() {
     const themeBtn = document.getElementById('theme-toggle');
     if (!themeBtn) return;
     const currentTheme = document.documentElement.getAttribute('data-theme');
-    themeBtn.textContent = currentTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+    themeBtn.textContent = currentTheme === 'dark' ? 'Light' : 'Dark';
 }
 
 function getChartColors() {
@@ -239,8 +239,8 @@ function renderWeekChart() {
     const values = (weekChartData || []).map(d => isPlays ? (d.plays || 0) : (d.playtime || 0));
 
     const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, '#fa233b');
-    gradient.addColorStop(1, 'rgba(250,35,59,0.12)');
+    gradient.addColorStop(0, '#b7a4ed');
+    gradient.addColorStop(1, 'rgba(183,164,237,0.12)');
 
     const cc = getChartColors();
     weekChartInstance = new Chart(ctx, {
@@ -329,7 +329,7 @@ function renderTop50() {
     if (playAllBtn) playAllBtn.disabled = false;
 
     const maxPlaytime = rows[0].playtime || 1;
-    const medals = ['🥇', '🥈', '🥉'];
+    const medals = ['01', '02', '03'];
     const podiumClasses = ['podium-1', 'podium-2', 'podium-3'];
 
     rows.slice(0, 3).forEach((item, i) => {
@@ -765,7 +765,7 @@ async function loadHourlyChart() {
     const values = data.map(d => d.plays);
 
     const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient.addColorStop(0, '#30d158');
+    gradient.addColorStop(0, '#85c8b1');
     gradient.addColorStop(1, 'rgba(48,209,88,0.1)');
 
     const cc = getChartColors();
@@ -804,7 +804,7 @@ async function loadDayOfWeekChart() {
     const labels = data.map(d => d.day_name);
     const values = data.map(d => d.plays);
 
-    const colors = ['#ff6b6b', '#ffa94d', '#ffd43b', '#69db7c', '#4dabf7', '#9775fa', '#f783ac'];
+    const colors = ['#b7a4ed', '#9b8bd2', '#81bfc8', '#85c8b1', '#a3b7de', '#d5aac5', '#bbaa87'];
     const bgColors = data.map((_, i) => {
         const c = colors[i % colors.length];
         return c + '33';
@@ -857,8 +857,8 @@ async function loadGrowthChart() {
                 {
                     label: 'Monthly Plays',
                     data: plays,
-                    borderColor: '#fa233b',
-                    backgroundColor: 'rgba(250,35,59,0.1)',
+                    borderColor: '#b7a4ed',
+                    backgroundColor: 'rgba(183,164,237,0.1)',
                     fill: true,
                     tension: 0.3,
                     pointRadius: 2,
@@ -868,8 +868,8 @@ async function loadGrowthChart() {
                 {
                     label: 'Total',
                     data: cumulative,
-                    borderColor: '#0a84ff',
-                    backgroundColor: 'rgba(10,132,255,0.05)',
+                    borderColor: '#81bfc8',
+                    backgroundColor: 'rgba(129,191,200,0.08)',
                     fill: true,
                     tension: 0.3,
                     pointRadius: 0,
@@ -913,7 +913,7 @@ async function loadGenreChart() {
     const labels = data.slice(0, 10).map(d => d.genre || 'Unknown');
     const values = data.slice(0, 10).map(d => d.plays);
 
-    const genreColors = ['#fa233b', '#0a84ff', '#30d158', '#ff9f0a', '#bf5af2', '#ff6482', '#5e5ce6', '#ffd60a', '#64d2ff', '#ff375f'];
+    const genreColors = ['#b7a4ed', '#81bfc8', '#85c8b1', '#d4b28b', '#aa91c9', '#d5aac5', '#9bafda', '#bdc79c', '#96bac3', '#c498af'];
     const bgColors = labels.map((_, i) => genreColors[i % genreColors.length] + '33');
     const bColors = labels.map((_, i) => genreColors[i % genreColors.length]);
 
@@ -1203,6 +1203,11 @@ async function performSearch() {
 }
 
 function closeSearch() {
+    clearTimeout(searchTimeout);
+    if (!document.querySelector('.tab-panel.active')) {
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'music';
+        document.getElementById(`tab-${activeTab}`)?.classList.add('active');
+    }
     searchInput.value = '';
     searchOverlay.classList.add('hidden');
     closeSearchBtn.classList.add('hidden');
@@ -1514,7 +1519,7 @@ function initMobileNav() {
 // ── Swipe Navigation ──
 function initSwipeNavigation() {
   let touchStartX = 0, touchStartY = 0;
-  const tabOrder = ['dashboard', 'discover', 'music', 'insights', 'library', 'year'];
+  const tabOrder = ['music', 'dashboard', 'discover', 'timeline', 'insights', 'history', 'library', 'year'];
   
   document.addEventListener('touchstart', (e) => {
     if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || 

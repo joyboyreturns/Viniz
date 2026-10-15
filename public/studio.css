@@ -1,0 +1,157 @@
+/* Shared Viniz design: every route uses the same surfaces, type and controls. */
+body.studio-ui {
+ --bg:#0b0d14;--bg-card:#151823;--bg-card-hover:#1d2030;--bg-glass:rgba(255,255,255,.045);
+ --text:#f2eff8;--text-dim:#a09aaf;--text-muted:#797387;--accent:#c0adf2;--accent-glow:rgba(192,173,242,.12);
+ --accent2:#81bfc8;--accent2-glow:rgba(129,191,200,.12);--green:#85c8b1;--orange:#d4b28b;--purple:#b7a4ed;
+ --border:rgba(255,255,255,.085);--border-hover:rgba(192,173,242,.32);--header-bg:rgba(11,13,20,.95);
+ --modal-bg:#151823;--modal-overlay:rgba(5,5,12,.8);--toast-bg:#202131;--chart-grid:rgba(255,255,255,.05);
+ --shadow:0 16px 45px rgba(0,0,0,.16);--shadow-sm:none;--radius:15px;--radius-sm:9px;
+ --heatmap-l0:#24212f;--heatmap-l1:#40334f;--heatmap-l2:#6c5289;--heatmap-l3:#9f82bd;--heatmap-l4:#d2b6eb;
+ background:var(--bg);color:var(--text);background-image:radial-gradient(ellipse at 85% 5%,rgba(102,68,140,.08),transparent 48%);color-scheme:dark;
+}
+html[data-theme="light"] body.studio-ui {
+ --bg:#f5f3f8;--bg-card:#ffffff;--bg-card-hover:#faf8ff;--bg-glass:rgba(52,30,79,.035);--text:#292335;
+ --text-dim:#71687e;--text-muted:#8f859b;--accent:#73549c;--accent-glow:rgba(115,84,156,.09);--accent2:#397d87;
+ --green:#3b836a;--border:rgba(63,41,86,.1);--border-hover:rgba(115,84,156,.3);--header-bg:rgba(245,243,248,.95);
+ --modal-bg:#fff;--modal-overlay:rgba(22,14,35,.55);--toast-bg:#fff;--shadow:0 16px 45px rgba(63,41,86,.07);
+ --heatmap-l0:#ebe6f1;--heatmap-l1:#d9cbe9;--heatmap-l2:#b89bd1;--heatmap-l3:#956fb6;--heatmap-l4:#745095;color-scheme:light;
+}
+body.studio-ui .app-container{max-width:1440px;padding-left:2rem;padding-right:2rem}
+body.studio-ui .main-header{background:var(--header-bg);border-bottom:1px solid var(--border);padding:1.1rem 2rem 0;margin:0 -2rem;box-shadow:none}
+body.studio-ui .header-content{gap:1rem;align-items:center;margin-bottom:.85rem}
+body.studio-ui .header-left h1{font-size:1.55rem;font-weight:650;letter-spacing:-.07em;background:none;-webkit-text-fill-color:var(--text);color:var(--text)}
+body.studio-ui .header-left h1::before{content:'◈';color:var(--accent);margin-right:.5rem;-webkit-text-fill-color:var(--accent)}
+body.studio-ui .header-left p{display:none}
+body.studio-ui .header-actions{gap:.4rem;align-items:center}
+body.studio-ui .action-btn,body.studio-ui .time-toggler{font-size:.65rem;font-weight:500;border-radius:7px;padding:.55rem .75rem;background-color:var(--bg-glass);color:var(--text-dim);border:1px solid var(--border);box-shadow:none;line-height:1.25}
+body.studio-ui .time-toggler{padding-right:1.7rem}
+body.studio-ui #theme-toggle{display:inline-flex;align-items:center}
+body.studio-ui .action-btn:hover{background:var(--accent-glow);color:var(--accent);border-color:var(--border-hover);transform:none}
+body.studio-ui .tab-nav{gap:1.5rem;padding:0;margin:0;scrollbar-width:none;border:0}
+body.studio-ui .tab-btn{font-size:.74rem;font-weight:500;padding:.8rem .1rem .95rem;color:var(--text-dim);border:0;border-radius:0;background:none;box-shadow:none}
+body.studio-ui .tab-btn:hover{color:var(--text);background:none}
+body.studio-ui .tab-btn.active{color:var(--accent);background:none;box-shadow:none;border-radius:0}
+body.studio-ui .tab-btn.active::after{background:var(--accent);height:2px;border-radius:2px;bottom:0}
+body.studio-ui .search-container{margin:.1rem 0 .4rem;max-width:480px}
+body.studio-ui #search-input,body.studio-ui .history-search-input{background:var(--bg-card);border:1px solid var(--border);border-radius:9px;padding:.7rem .9rem;font-size:.74rem;box-shadow:none;color:var(--text)}
+body.studio-ui input::placeholder{color:var(--text-muted)}
+body.studio-ui input:focus,body.studio-ui select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+body.studio-ui button:focus-visible,body.studio-ui a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+body.studio-ui .tab-panel:not(#tab-music){max-width:1360px;margin:auto;padding:2.2rem 0 3rem;animation:none}
+body.studio-ui .tab-panel.active>*{animation:none}
+.studio-eyebrow{display:block;font-size:.58rem;font-weight:650;letter-spacing:.18em;color:var(--accent);margin-bottom:.65rem}
+body.studio-ui .page-header,.studio-page-heading{position:relative;overflow:hidden;padding:2rem 2.2rem;margin:0 0 2rem;border:1px solid var(--border);border-radius:19px;background:radial-gradient(ellipse at 95% 0%,var(--accent-glow),transparent 65%),var(--bg-card)}
+body.studio-ui .page-header h2,.studio-page-heading h2{font-size:clamp(1.85rem,3.5vw,2.7rem);font-weight:600;letter-spacing:-.06em;line-height:1.12;max-width:820px}
+body.studio-ui .page-header p,.studio-page-heading p{font-size:.77rem;color:var(--text-dim);line-height:1.7;margin-top:.65rem;max-width:560px}
+body.studio-ui .page-header .history-controls{margin-top:1.4rem!important;gap:.7rem;flex-wrap:wrap}
+body.studio-ui .page-header .history-search-input{width:min(320px,100%)}
+.studio-listening-heading{display:flex;align-items:center;justify-content:space-between;min-height:260px;padding:2.5rem 2.8rem;background:radial-gradient(ellipse at 90% 10%,rgba(160,119,183,.17),transparent 65%),linear-gradient(110deg,var(--bg-card),var(--bg))}
+.studio-listening-heading h2{font-size:clamp(2.9rem,5vw,4.4rem);line-height:1.02}.studio-listening-heading h2 em{color:var(--accent);font-style:normal}.studio-listening-heading p{max-width:400px}
+.studio-equalizer{height:170px;min-width:300px;display:flex;align-items:center;justify-content:center;gap:12px;position:relative;margin-right:3rem;transform:rotate(-8deg)}
+.studio-equalizer i{width:13px;height:70%;background:linear-gradient(0deg,transparent,var(--accent));border-radius:20px;opacity:.65;box-shadow:0 0 25px var(--accent-glow)}
+.studio-equalizer i:nth-child(3n){height:100%;opacity:.9}.studio-equalizer i:nth-child(2n){height:40%;opacity:.4}.studio-equalizer i:first-child,.studio-equalizer i:last-of-type{height:20%}.studio-equalizer span{position:absolute;bottom:-2rem;font-size:.5rem;letter-spacing:.18em;color:var(--text-muted);transform:rotate(8deg)}
+body.studio-ui .this-week-hero{border:0;background:none;border-radius:0;padding:0;box-shadow:none;margin:0 0 2.5rem}
+body.studio-ui .this-week-hero::before{display:none}
+body.studio-ui .this-week-title h2,body.studio-ui .top50-title h2{color:var(--text);background:none;-webkit-text-fill-color:var(--text);font-size:1.5rem;letter-spacing:-.045em;font-weight:600}
+body.studio-ui .week-range,body.studio-ui .top50-scope-label{font-size:.65rem;color:var(--text-muted)}
+body.studio-ui .week-stats{gap:1rem;margin:1.2rem 0}
+body.studio-ui .summary-card,body.studio-ui .insight-chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;box-shadow:none;backdrop-filter:none}
+body.studio-ui .stat-card,body.studio-ui .insight-stat-card{align-items:flex-start;text-align:left;padding:1.5rem;position:relative;overflow:hidden}
+body.studio-ui .stat-card::after,body.studio-ui .insight-stat-card::after{content:'';position:absolute;right:1rem;top:1.4rem;width:5px;height:5px;background:var(--accent);border-radius:50%;opacity:.7}
+body.studio-ui .stat-value,body.studio-ui .unique-counts-row .stat-value{background:none;-webkit-text-fill-color:var(--text);color:var(--text);font-size:2.3rem;font-weight:550;letter-spacing:-.055em;line-height:1.15}
+body.studio-ui .stat-label{font-size:.6rem;letter-spacing:.08em;color:var(--text-dim);margin-top:.7rem}
+body.studio-ui .stat-card:hover{transform:none;background:var(--bg-card-hover);box-shadow:none}
+body.studio-ui .week-body{gap:1rem;grid-template-columns:1.5fr 1fr}
+body.studio-ui .week-chart-card{padding:1.4rem}body.studio-ui .week-chart-header h3{font-size:.84rem;font-weight:550}
+body.studio-ui .week-chart-card .chart-wrapper{height:210px}
+body.studio-ui .week-top-track{padding:1.4rem;justify-content:flex-start;background:radial-gradient(ellipse at 90% 0,var(--accent-glow),transparent 65%),var(--bg-card)}
+body.studio-ui .week-top-label{color:var(--accent);font-size:.6rem;letter-spacing:.14em;margin-bottom:1rem}
+body.studio-ui .week-top-body{flex:1;align-items:center;flex-wrap:wrap}
+body.studio-ui .week-top-cover{width:90px;height:90px;border-radius:10px;box-shadow:var(--shadow)}
+body.studio-ui .week-top-name{font-size:.9rem;letter-spacing:-.02em}body.studio-ui .week-top-artist{font-size:.7rem;margin-top:.3rem}
+body.studio-ui .week-top-play,body.studio-ui .play-all-btn{background:var(--accent);color:var(--bg);border:0;box-shadow:none}
+body.studio-ui .play-all-btn{border-radius:7px;padding:.65rem .9rem;font-size:.65rem}
+body.studio-ui .chart-toggle-group,body.studio-ui .top50-scope-toggle,body.studio-ui .library-tabs{border-radius:8px;padding:.25rem;background:var(--bg-glass);border:1px solid var(--border)}
+body.studio-ui .chart-toggle-btn,body.studio-ui .scope-btn,body.studio-ui .library-tab{border-radius:5px;font-size:.65rem;padding:.4rem .65rem}
+body.studio-ui .chart-toggle-btn.active,body.studio-ui .scope-btn.active,body.studio-ui .library-tab.active{background:var(--accent-glow);color:var(--accent)}
+body.studio-ui .podium{gap:1rem;margin:1.6rem 0 1rem;align-items:stretch}
+body.studio-ui .podium-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.5rem;box-shadow:none;min-width:0;flex:1}
+body.studio-ui .podium-card.podium-1{transform:none;border-color:var(--border-hover);background:radial-gradient(ellipse at 50% 0,var(--accent-glow),transparent 75%),var(--bg-card)}
+body.studio-ui .podium-card:hover{transform:translateY(-3px);box-shadow:none}
+body.studio-ui .podium-medal{font-size:.65rem;color:var(--accent);font-weight:500;letter-spacing:.1em}
+body.studio-ui .podium-cover,body.studio-ui .podium-1 .podium-cover{width:115px;height:115px;border-radius:12px;border:1px solid var(--border);box-shadow:var(--shadow)}
+body.studio-ui .podium-name{font-weight:550;font-size:.86rem;letter-spacing:-.02em}
+body.studio-ui .top50-list{gap:0;padding:.6rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px}
+body.studio-ui .top50-row{border-bottom:1px solid var(--border);border-radius:0;min-height:66px}
+body.studio-ui .top50-row:last-child{border:0}body.studio-ui .top50-name{font-size:.76rem;font-weight:500}body.studio-ui .top50-artist{font-size:.65rem}
+body.studio-ui .popularity-fill{background:linear-gradient(90deg,var(--accent),var(--accent2))}body.studio-ui .popularity-bar{height:3px;background:var(--bg-glass)}
+body.studio-ui #lists-section{gap:1rem;margin-top:2rem}
+body.studio-ui .list-container{padding:1.4rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px}
+body.studio-ui .list-header h2{font-size:1rem;letter-spacing:-.03em;font-weight:550}
+body.studio-ui .stats-list li{padding:.7rem .3rem;border-radius:6px;border-bottom:1px solid var(--border)}body.studio-ui .stats-list li:last-child{border-bottom:0}
+body.studio-ui .stats-list li::before{color:var(--text-muted);font-size:.66rem;font-weight:500}
+body.studio-ui .item-name{font-size:.76rem;font-weight:550}body.studio-ui .item-artist,body.studio-ui .item-plays{font-size:.64rem}
+body.studio-ui .timeline-feed{background:var(--bg-card);border:1px solid var(--border);border-radius:15px;padding:1.25rem 1.6rem}
+body.studio-ui .timeline-date{position:static;background:none;border:0;font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:1rem 0 .8rem;margin-top:.3rem}
+body.studio-ui .timeline-entry{padding:.8rem .8rem .8rem 1.4rem;border-left:1px solid var(--border);border-radius:0;margin-left:.25rem}
+body.studio-ui .timeline-track{font-size:.78rem;font-weight:550}.studio-ui .timeline-artist{font-size:.66rem;margin-top:.25rem}
+body.studio-ui .timeline-cover{width:44px;height:44px;border-radius:7px}
+body.studio-ui .timeline-time{font-size:.64rem;color:var(--text-muted)}body.studio-ui .timeline-dot{height:7px;width:7px;left:-4px;border:0}
+body.studio-ui .timeline-badge,body.studio-ui .type-badge{border-radius:4px;font-size:.5rem;font-weight:550;padding:.2rem .4rem;letter-spacing:.06em}
+body.studio-ui .timeline-badge.play,body.studio-ui .type-badge.play{background:rgba(133,200,177,.1);color:var(--green)}
+body.studio-ui .timeline-badge.view,body.studio-ui .type-badge.view{background:var(--accent2-glow);color:var(--accent2)}
+body.studio-ui .insights-grid{gap:1rem}.studio-ui .insight-cards-row,.studio-ui .charts-row{gap:1rem}
+body.studio-ui .insight-chart-card{padding:1.5rem}.studio-ui .insight-chart-card h3{font-size:.85rem;font-weight:550;letter-spacing:-.02em;margin-bottom:1rem}
+body.studio-ui .chart-wrapper-sm{height:240px}
+body.studio-ui .streak-card{text-align:left;display:grid;grid-template-columns:42px 1fr;column-gap:1rem;align-items:center;padding:1.3rem}
+body.studio-ui .streak-icon{grid-column:1;grid-row:1/4;display:grid;place-items:center;width:40px;height:40px;margin:0;border-radius:10px;color:var(--accent);background:var(--accent-glow)}
+.studio-ui .streak-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+body.studio-ui .streak-value{font-size:1.8rem;color:var(--text);line-height:1.1;letter-spacing:-.05em}.studio-ui .streak-label{font-size:.65rem;margin-top:.35rem}.studio-ui .streak-sub{font-size:.55rem}
+body.studio-ui .heatmap-cell.l0,body.studio-ui .legend-swatch.l0{background:var(--heatmap-l0)}body.studio-ui .heatmap-cell.l1,body.studio-ui .legend-swatch.l1{background:var(--heatmap-l1)}body.studio-ui .heatmap-cell.l2,body.studio-ui .legend-swatch.l2{background:var(--heatmap-l2)}body.studio-ui .heatmap-cell.l3,body.studio-ui .legend-swatch.l3{background:var(--heatmap-l3)}body.studio-ui .heatmap-cell.l4,body.studio-ui .legend-swatch.l4{background:var(--heatmap-l4)}
+body.studio-ui .table-wrapper{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:.5rem 1rem;overflow:auto}
+body.studio-ui .history-table th{color:var(--text-muted);font-size:.58rem;font-weight:550;letter-spacing:.1em;padding:1rem .65rem;background:var(--bg-card);text-transform:uppercase;white-space:nowrap}
+body.studio-ui .history-table td{font-size:.7rem;padding:.9rem .65rem;border-color:var(--border)}body.studio-ui .history-table tr:hover td{background:var(--bg-glass)}
+body.studio-ui .page-btn{border-radius:7px;padding:.55rem .8rem;font-size:.65rem;background:var(--bg-card)}body.studio-ui .page-info{font-size:.64rem}
+body.studio-ui .discover-section{margin:0 0 2.3rem}.studio-ui .discover-section h3{font-size:1.15rem;font-weight:550;letter-spacing:-.04em;margin-bottom:1.1rem}
+body.studio-ui .discover-grid,body.studio-ui .library-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:1.4rem 1rem;margin-top:.5rem}
+body.studio-ui .discover-card,body.studio-ui .library-card{background:none;border:0;box-shadow:none;padding:0;min-width:0;text-align:left;border-radius:10px}
+body.studio-ui .discover-card:hover,body.studio-ui .library-card:hover{background:none;box-shadow:none;transform:translateY(-3px)}
+body.studio-ui .discover-card-img,body.studio-ui .library-card-img{width:100%;height:auto;aspect-ratio:1;object-fit:cover;max-width:none;border-radius:11px;margin:0 0 .75rem;background:var(--bg-card);border:1px solid var(--border);box-shadow:none}
+body.studio-ui .discover-card-img.round,body.studio-ui .library-card-img.round{border-radius:50%}
+body.studio-ui .discover-card-info{padding:0 .15rem}.studio-ui .discover-card-name,.studio-ui .library-card-name{font-size:.78rem;font-weight:550;line-height:1.5}.studio-ui .discover-card-sub,.studio-ui .library-card-sub{font-size:.65rem;color:var(--text-dim);line-height:1.5}.studio-ui .discover-card-meta{font-size:.56rem;color:var(--text-muted);margin-top:.3rem}
+body.studio-ui .discover-card-play{background:var(--accent);color:var(--bg);box-shadow:var(--shadow);bottom:4.5rem;right:.6rem;left:auto;top:auto;transform:none;width:35px;height:35px;font-size:.7rem}
+body.studio-ui .yearly-hero{background:radial-gradient(ellipse at 80% 0,var(--accent-glow),transparent 70%),var(--bg-card);border:1px solid var(--border);border-radius:18px;padding:2.2rem;box-shadow:none;text-align:left}
+body.studio-ui .yearly-hero::before{display:none}.studio-ui .yearly-hero h2{font-size:clamp(2.5rem,5vw,4.5rem);font-weight:550;letter-spacing:-.07em;background:none;-webkit-text-fill-color:var(--accent);color:var(--accent)}
+body.studio-ui .yearly-subtitle{font-size:.8rem;color:var(--text-dim)}body.studio-ui .yearly-stats-grid{gap:1rem;margin:1rem 0;grid-template-columns:repeat(4,minmax(0,1fr))}
+body.studio-ui .yearly-stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;padding:1.5rem;text-align:left;box-shadow:none}.studio-ui .yearly-stat-value{font-weight:550;font-size:2.15rem;letter-spacing:-.06em;color:var(--text)}.studio-ui .yearly-stat-label{font-size:.6rem;color:var(--text-dim);letter-spacing:.08em}
+body.studio-ui .yearly-section{padding:1.4rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;margin-top:1rem}.studio-ui .yearly-section h3{font-size:1rem;font-weight:550;letter-spacing:-.03em}.studio-ui .yearly-rank{background:none;border:0;border-bottom:1px solid var(--border);border-radius:0;padding:.8rem .1rem;margin:0}.studio-ui .yearly-rank:last-child{border:0}.studio-ui .yearly-rank-name{font-size:.75rem;font-weight:550}.studio-ui .yearly-rank-sub,.studio-ui .yearly-rank-stat{font-size:.62rem}
+body.studio-ui .modal-content{background:var(--modal-bg);border:1px solid var(--border-hover);border-radius:18px;box-shadow:0 30px 100px #0006}
+body.studio-ui .modal-header{padding:2rem;background:radial-gradient(ellipse at 10% 0,var(--accent-glow),transparent 80%);border-bottom:1px solid var(--border);gap:1.4rem}.studio-ui .modal-artist-image{box-shadow:var(--shadow);border:1px solid var(--border)}.studio-ui .modal-artist-info h2{font-weight:550;letter-spacing:-.05em;font-size:2rem}.studio-ui .modal-artist-stats{font-size:.7rem;color:var(--text-dim)}.studio-ui .modal-body{padding:1.6rem 2rem}.studio-ui .modal-section h3{font-size:.9rem;font-weight:550;letter-spacing:-.02em}.studio-ui .close-btn{border:1px solid var(--border);background:var(--bg-card);color:var(--text-dim);border-radius:7px;font-size:1.3rem;width:30px;height:30px;top:.8rem;right:.8rem}
+body.studio-ui .settings-modal{max-width:440px}.studio-ui .settings-modal .modal-body>h2{font-size:1.5rem;font-weight:550;letter-spacing:-.04em;margin-bottom:1.5rem}.studio-ui .settings-group select{background:var(--bg-card);border:1px solid var(--border);color:var(--text);border-radius:8px}
+body.studio-ui .empty-state{padding:2.5rem 1.5rem;border:1px dashed var(--border-hover);border-radius:12px;background:var(--bg-glass);color:var(--text-dim);font-size:.78rem;line-height:1.7;grid-column:1/-1}
+body.studio-ui .skeleton{background:linear-gradient(110deg,var(--bg-card) 20%,var(--bg-glass) 40%,var(--bg-card) 60%);background-size:200% 100%}
+body.studio-ui .player-bar,body.studio-ui .player-expanded,body.studio-ui .queue-panel{background:var(--modal-bg);border-color:var(--border);color:var(--text)}body.studio-ui .player-cover{border-radius:7px}.studio-ui .player-track{font-weight:550}.studio-ui .player-btn.play-btn,.studio-ui .exp-play-btn{background:var(--accent);color:var(--bg);box-shadow:none}
+body.studio-ui .mobile-nav{background:var(--header-bg);border-color:var(--border);box-shadow:0 -5px 25px #0002;gap:0;justify-content:space-around}
+body.studio-ui .mobile-nav-btn{color:var(--text-muted);flex:1;min-width:0;padding:.55rem .1rem;font-size:.54rem;gap:.3rem}.studio-ui .mobile-nav-btn.active{color:var(--accent)}
+body.studio-ui .mobile-nav .nav-icon svg{width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* Light mode keeps the same hierarchy and components across the music workspace. */
+html[data-theme="light"] #tab-music{--text:#292335;--text-dim:#71687e;--text-muted:#8f859b;--bg-card:#fff;--bg-glass:rgba(52,30,79,.035);--border:rgba(63,41,86,.1);--accent:#73549c;--accent-glow:rgba(115,84,156,.09)}
+html[data-theme="light"] .music-country-picker,html[data-theme="light"] .music-search,html[data-theme="light"] .music-storage-total,html[data-theme="light"] .music-storage-stat,html[data-theme="light"] .music-storage-card,html[data-theme="light"] .music-library-cards .music-library-row{background:var(--bg-card);border-color:var(--border);color:var(--text)}
+html[data-theme="light"] .music-search input,html[data-theme="light"] .music-card-title,html[data-theme="light"] .music-artist-card,html[data-theme="light"] .music-library-main,html[data-theme="light"] .music-view-btn.active{color:var(--text)}
+html[data-theme="light"] .music-feed-btn.active,html[data-theme="light"] .music-library-btn.active,html[data-theme="light"] .music-country-shortcuts button.active{background:var(--accent-glow);color:var(--accent);border-color:var(--border-hover)}
+html[data-theme="light"] .music-quiet-btn,html[data-theme="light"] .music-add-btn,html[data-theme="light"] .music-library-controls input,html[data-theme="light"] .music-library-controls select,html[data-theme="light"] .music-library-actions button{background:var(--bg-card);border-color:var(--border);color:var(--accent)}
+html[data-theme="light"] .music-country-picker option,html[data-theme="light"] #tab-music select option{background:var(--bg-card);color:var(--text)}
+html[data-theme="light"] .music-card-info .music-artist-link,html[data-theme="light"] .music-breakdown-row{color:var(--text-dim)}
+html[data-theme="light"] .music-dialog,html[data-theme="light"] .music-player-dialog{--text:#f2eff8;--text-dim:#a09aaf;--bg-card:#151823;--border:#ffffff15;--accent:#c0adf2}
+html[data-theme="light"] .music-storage-ring::before{background:var(--bg-card)}
+@media(min-width:900px){body.studio-ui #lists-section{grid-template-columns:1fr 1fr}}
+@media(max-width:1050px){body.studio-ui .discover-grid,body.studio-ui .library-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.studio-equalizer{min-width:240px;margin-right:1rem;gap:9px}.studio-equalizer i{width:11px}}
+@media(max-width:800px){body.studio-ui .app-container{padding-left:1.3rem;padding-right:1.3rem}.studio-ui .main-header{margin:0 -1.3rem!important;padding-left:1.3rem!important;padding-right:1.3rem!important}.studio-ui .page-header,.studio-page-heading{padding:1.6rem}.studio-listening-heading{min-height:240px}.studio-listening-heading h2{font-size:3rem}.studio-equalizer{min-width:180px;gap:7px;height:135px;margin-right:0}.studio-equalizer i{width:9px}body.studio-ui .discover-grid,body.studio-ui .library-grid{grid-template-columns:repeat(4,minmax(0,1fr))}body.studio-ui .week-body{grid-template-columns:1fr}body.studio-ui .podium-card{padding:1.1rem}.studio-ui .yearly-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:639px){body.studio-ui .app-container{padding-left:1rem;padding-right:1rem;padding-bottom:calc(90px + var(--player-height))}body.studio-ui .main-header{margin:0 -1rem!important;padding:.8rem 1rem .65rem!important}body.studio-ui .header-content{gap:.5rem;margin-bottom:0;flex-wrap:wrap}body.studio-ui .header-actions{gap:.3rem;margin-left:auto}body.studio-ui .action-btn{font-size:.58rem;padding:.5rem .6rem}body.studio-ui #export-btn,body.studio-ui #import-btn{display:none}body.studio-ui #global-time-toggler{max-width:100px;font-size:.58rem;padding:.5rem 1.5rem .5rem .55rem}body.studio-ui .search-container{margin:.65rem 0 0;max-width:none}body.studio-ui #search-input{padding:.6rem .8rem;font-size:.7rem}body.studio-ui .tab-panel:not(#tab-music){padding-top:1.4rem}body.studio-ui .page-header,.studio-page-heading{padding:1.4rem 1.2rem;margin-bottom:1.5rem;border-radius:14px}.studio-eyebrow{font-size:.49rem;margin-bottom:.55rem}body.studio-ui .page-header h2{font-size:1.8rem;line-height:1.12}body.studio-ui .page-header p{font-size:.69rem}.studio-listening-heading{min-height:235px}.studio-listening-heading>div:first-child{position:relative;z-index:1;max-width:80%}.studio-listening-heading h2{font-size:2.8rem}.studio-listening-heading p{font-size:.69rem;max-width:240px}.studio-equalizer{position:absolute;right:-2rem;bottom:2.8rem;opacity:.25;min-width:150px;gap:6px;height:130px}.studio-equalizer i{width:8px}.studio-equalizer span{display:none}body.studio-ui .this-week-title h2,body.studio-ui .top50-title h2{font-size:1.2rem}body.studio-ui .week-stats{gap:.65rem;grid-template-columns:repeat(2,minmax(0,1fr))}body.studio-ui .stat-card,body.studio-ui .insight-stat-card{padding:1.1rem}body.studio-ui .stat-value,body.studio-ui .unique-counts-row .stat-value{font-size:1.9rem}body.studio-ui .stat-label{font-size:.53rem}.studio-ui .week-chart-card,.studio-ui .week-top-track{padding:1.1rem!important}body.studio-ui .top50-header{align-items:flex-start;gap:.8rem}.studio-ui .top50-controls{gap:.5rem}.studio-ui .scope-btn{font-size:.56rem!important;padding:.4rem .5rem!important}.studio-ui .play-all-btn{font-size:.58rem!important;padding:.6rem!important}body.studio-ui .podium{gap:.5rem}body.studio-ui .podium-card{padding:.75rem .4rem;border-radius:10px}body.studio-ui .podium-cover,body.studio-ui .podium-1 .podium-cover{width:70px;height:70px;border-radius:8px}.studio-ui .podium-name{font-size:.65rem!important}.studio-ui .podium-artist,.studio-ui .podium-stat{font-size:.55rem!important}body.studio-ui .top50-list{padding:.3rem .6rem}body.studio-ui .top50-name{font-size:.67rem}.studio-ui .top50-artist{font-size:.58rem!important}.studio-ui .top50-stats{font-size:.57rem}.studio-ui .top50-row .inline-play-btn{opacity:1}body.studio-ui .list-container{padding:1.1rem}.studio-ui #lists-section{gap:1rem!important}body.studio-ui .timeline-feed{padding:.6rem .8rem}.studio-ui .timeline-entry{gap:.6rem;padding:.75rem .3rem .75rem .8rem!important}.studio-ui .timeline-track{font-size:.69rem!important}.studio-ui .timeline-artist{font-size:.59rem!important}.studio-ui .timeline-cover{width:35px!important;height:35px!important}.studio-ui .timeline-time{font-size:.55rem!important}.studio-ui .insight-cards-row.unique-counts-row{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-ui .streak-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.studio-ui .streak-card{display:flex!important;flex-direction:column;padding:.8rem .3rem!important;text-align:center!important;gap:.2rem}.studio-ui .streak-icon{width:30px!important;height:30px!important;margin-bottom:.4rem!important}.studio-ui .streak-icon svg{width:17px;height:17px}.studio-ui .streak-value{font-size:1.5rem!important}.studio-ui .streak-label{font-size:.54rem!important}.studio-ui .streak-sub{font-size:.5rem!important}.studio-ui .insight-chart-card{padding:1.1rem!important}.studio-ui .chart-wrapper-sm{height:210px!important}body.studio-ui .charts-row{grid-template-columns:1fr}.studio-ui .history-controls{gap:.5rem!important}.studio-ui .history-controls .history-search-input{min-width:0;flex:1;width:100%}.studio-ui .history-controls .time-toggler{max-width:120px}.studio-ui .table-wrapper{padding:.3rem .4rem!important}.studio-ui .history-table{min-width:650px}.studio-ui .history-table td{font-size:.65rem!important}.studio-ui .history-table th{font-size:.53rem!important}body.studio-ui .discover-grid,body.studio-ui .library-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:1.2rem .65rem}.studio-ui .discover-section h3{font-size:1rem}.studio-ui .discover-card-name,.studio-ui .library-card-name{font-size:.65rem!important}.studio-ui .discover-card-sub,.studio-ui .library-card-sub{font-size:.55rem!important}.studio-ui .discover-card-meta{font-size:.49rem!important}.studio-ui .discover-card-play{opacity:1;width:27px!important;height:27px!important;bottom:4.7rem!important;font-size:.55rem!important}.studio-ui .yearly-hero{padding:1.5rem!important}.studio-ui .yearly-stat-card{padding:1.1rem!important}.studio-ui .yearly-stat-value{font-size:1.65rem!important}.studio-ui .yearly-stat-label{font-size:.54rem!important}.studio-ui .yearly-section{padding:1rem!important}.studio-ui .yearly-rank-stat{font-size:.55rem!important;max-width:90px}.studio-ui .modal-header{padding:1.6rem 1.1rem!important;gap:1rem!important}.studio-ui .modal-artist-info h2{font-size:1.55rem!important}.studio-ui .modal-body{padding:1.2rem!important}.studio-ui .modal-content{border-radius:17px 17px 0 0!important}.studio-ui .settings-modal{margin:0 .5rem;border-radius:14px!important}.studio-ui .heatmap-legend{font-size:.5rem}.studio-ui .insight-chart-header{gap:.5rem;flex-wrap:wrap}.studio-ui .mobile-nav-btn{font-size:.49rem;flex:1}.studio-ui .mobile-nav .nav-icon svg{width:17px;height:17px}}
+@media(prefers-reduced-motion:reduce){body.studio-ui *,body.studio-ui *::before,body.studio-ui *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+html[data-theme="light"] .music-hero{color:#f4f3f9}
+body.studio-ui .list-container,body.studio-ui .item-info,body.studio-ui .item-name,body.studio-ui .item-sub{min-width:0}
+body.studio-ui #lists-section{grid-template-columns:minmax(0,1fr)}
+body.studio-ui .inline-play-btn{background:var(--accent-glow);color:var(--accent);box-shadow:none}
+body.studio-ui .stats-list .item-name,body.studio-ui .stats-list .item-sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:900px){body.studio-ui #lists-section{grid-template-columns:repeat(2,minmax(0,1fr))}}

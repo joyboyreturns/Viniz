@@ -1,10 +1,11 @@
-const CACHE_NAME = 'viniz-v3-music';
+const CACHE_NAME = 'viniz-v4-studio';
 const ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/player.css',
   '/music.css',
+  '/studio.css',
   '/music.js',
   '/app.js',
   '/player.js',
