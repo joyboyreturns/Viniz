@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#fa233b">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Viniz - Music Stats</title>
+    <title>Viniz — Your world of music</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="player.css">
     <link rel="stylesheet" href="music.css">
@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="music-active">
     <div class="app-container">
         <header class="main-header">
             <div class="header-content">
@@ -47,9 +47,10 @@
             </div>
 
             <nav class="tab-nav" id="tab-nav">
-                <button class="tab-btn active" data-tab="dashboard">Home</button>
-                <button class="tab-btn" data-tab="discover">Discover</button>
-                <button class="tab-btn" data-tab="music">Music</button>
+                <button class="tab-btn active" data-tab="music">Music</button>
+                <button class="tab-btn" data-tab="dashboard">Listening</button>
+                <button class="tab-btn" data-tab="discover">For you</button>
+
                 <button class="tab-btn" data-tab="timeline">Timeline</button>
                 <button class="tab-btn" data-tab="insights">Insights</button>
                 <button class="tab-btn" data-tab="history">History</button>
@@ -75,71 +76,65 @@
         </main>
 
         <!-- MUSIC DISCOVERY + NAVIDROME LIBRARY -->
-        <main class="tab-panel" id="tab-music">
-            <section class="music-hero">
-                <div class="music-hero-copy">
-                    <span class="music-eyebrow">YOUR SOUND, ALL IN ONE PLACE</span>
-                    <h2>Find your next<br><span>favorite song.</span></h2>
-                    <p>Explore current music, preview it on its source, then add music you have the right to keep to Navidrome.</p>
-                    <form id="music-search-form" class="music-search">
-                        <span aria-hidden="true">⌕</span>
-                        <input id="music-search-input" type="search" placeholder="Search a song or artist" aria-label="Search songs and artists">
-                        <button type="submit">Search</button>
-                    </form>
+        <main class="tab-panel active" id="tab-music">
+            <div class="music-topline">
+                <div><span class="music-eyebrow">THE WORLD IS YOUR PLAYLIST</span><h2>Your next obsession.</h2></div>
+                <label class="music-country-picker"><span aria-hidden="true">◎</span><span class="sr-only">Chart country</span><select id="music-country"><option value="ZZ">Worldwide</option></select></label>
+            </div>
+            <div class="music-navigation">
+                <div class="music-view-tabs" aria-label="Music section">
+                    <button class="music-view-btn active" data-view="discover">Discover</button>
+                    <button class="music-view-btn" data-view="storage">My collection</button>
+                    <button class="music-view-btn" data-view="activity">Downloads <span id="music-job-count"></span></button>
                 </div>
-                <div class="music-hero-art" aria-hidden="true">
-                    <div class="music-orbit orbit-one"></div><div class="music-orbit orbit-two"></div>
-                    <div class="music-record"><div class="record-label"><span>VINIZ</span><i>♪</i></div></div>
-                    <div class="music-note note-one">♫</div><div class="music-note note-two">♪</div>
-                </div>
-            </section>
-
-            <section class="music-discovery-section">
-                <div class="music-section-heading">
-                    <div><span class="music-eyebrow">OUT IN THE WORLD</span><h2>Discover music</h2></div>
-                    <div class="music-source-tabs" role="tablist" aria-label="Music source">
-                        <button class="music-source-btn active" data-source="youtube">YouTube</button>
-                        <button class="music-source-btn" data-source="spotify">Spotify</button>
+                <span class="music-connection" id="music-connection">Connecting to your library</span>
+            </div>
+            <div id="music-view-discover">
+                <section class="music-hero">
+                    <div class="music-hero-grain" aria-hidden="true"></div>
+                    <div class="music-hero-copy">
+                        <span class="music-pill"><i></i> A DIFFERENT WORLD OF MUSIC</span>
+                        <h2>Good music.<br><em>No borders.</em></h2>
+                        <p>Follow the charts. Fall for an artist. Build a collection that sounds like you.</p>
+                        <div class="music-hero-actions"><button id="music-hero-play" class="music-primary" disabled>▶ Play the chart</button><button id="music-jump-artists" class="music-text-button">Meet the artists ↗</button></div>
+                        <div class="music-hero-caption"><span class="music-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="music-hero-caption">Real charts. A world of possibilities.</span></div>
                     </div>
-                </div>
-                <div class="music-feed-tabs" role="tablist" aria-label="Music feed">
-                    <button class="music-feed-btn active" data-feed="trending">Trending</button>
-                    <button class="music-feed-btn" data-feed="recent">New releases</button>
-                </div>
-                <div id="music-source-status" class="music-source-status" aria-live="polite"></div>
-                <div id="music-results" class="music-results-grid"><div class="music-loading">Loading music…</div></div>
-                <div id="music-video-player" class="music-video-player hidden"></div>
-            </section>
-
-            <section class="music-library-section">
-                <div class="music-section-heading">
-                    <div><span class="music-eyebrow">YOUR NAVIDROME COLLECTION</span><h2>Music storage</h2></div>
-                    <button id="music-refresh-library" class="music-quiet-btn">↻ Refresh</button>
-                </div>
-                <div id="music-storage-overview" class="music-storage-overview"></div>
-                <div class="music-storage-columns">
-                    <div class="music-storage-card"><h3>Largest artists</h3><div id="music-largest-artists"></div></div>
-                    <div class="music-storage-card"><h3>Largest albums</h3><div id="music-largest-albums"></div></div>
-                </div>
-                <div class="music-library-controls">
-                    <div class="music-library-tabs" role="tablist" aria-label="Library view">
-                        <button class="music-library-btn active" data-group="tracks">Songs</button>
-                        <button class="music-library-btn" data-group="albums">Albums</button>
-                        <button class="music-library-btn" data-group="artists">Artists</button>
+                    <div id="music-hero-art" class="music-hero-art" aria-hidden="true"><div class="music-art-placeholder">♫</div></div>
+                    <span class="music-hero-edition" id="music-hero-edition">WORLDWIDE / IN ROTATION</span>
+                </section>
+                <div class="music-discovery-tools">
+                    <div class="music-feed-tabs" aria-label="Discovery feed">
+                        <button class="music-feed-btn active" data-feed="trending">Popular songs</button>
+                        <button class="music-feed-btn" data-feed="artists">Chart artists</button>
+                        <button class="music-feed-btn" data-feed="recent">Releases</button>
                     </div>
-                    <input id="music-library-search" type="search" placeholder="Filter your library" aria-label="Filter your library">
-                    <select id="music-library-sort" aria-label="Sort music">
-                        <option value="size">Largest first</option><option value="name">Name</option>
-                        <option value="artist">Artist</option><option value="recent">Recently updated</option>
-                    </select>
+                    <form id="music-search-form" class="music-search"><span aria-hidden="true">⌕</span><input id="music-search-input" type="search" maxlength="120" placeholder="Songs, artists, albums…" aria-label="Search music"><button type="submit" aria-label="Search music">↗</button><button type="button" id="music-clear-search" class="hidden" aria-label="Clear search">×</button></form>
                 </div>
-                <div id="music-library-list" class="music-library-list"></div>
-                <div class="music-library-footer"><button id="music-library-more" class="music-quiet-btn hidden">Load more</button><span id="music-library-count"></span></div>
-            </section>
+                <div class="music-country-shortcuts" aria-label="Quick country selection"><span>Take a trip</span><button data-country="ZZ">◎ Worldwide</button><button data-country="US">US</button><button data-country="GB">UK</button><button data-country="KR">Korea</button><button data-country="JP">Japan</button><button data-country="BR">Brazil</button><button data-country="FR">France</button><button data-country="IN">India</button></div>
+                <section class="music-discovery-section" aria-labelledby="music-results-title">
+                    <div class="music-section-heading"><div><span class="music-eyebrow" id="music-feed-eyebrow">THE CURRENT ROTATION</span><h2 id="music-results-title">Popular worldwide</h2><p id="music-source-status" aria-live="polite">YouTube Music country charts</p></div><button id="music-refresh-discovery" class="music-quiet-btn" aria-label="Reload discovery">↻ Refresh</button></div>
+                    <div id="music-results" class="music-results-grid" aria-live="polite"></div>
+                </section>
+                <section id="music-artists-section" class="music-discovery-section" aria-labelledby="music-artists-title"><div class="music-section-heading"><div><span class="music-eyebrow">THE NAMES IN ROTATION</span><h2 id="music-artists-title">Artists making waves</h2></div><button id="music-all-artists" class="music-text-button">Explore artists ↗</button></div><div id="music-artists" class="music-artists-rail"></div></section>
+                <section id="music-albums-section" class="music-discovery-section hidden"><div class="music-section-heading"><div><span class="music-eyebrow">LISTEN TO THE WHOLE STORY</span><h2>Albums & releases</h2></div></div><div id="music-albums" class="music-results-grid"></div></section>
+                <div class="music-bottom-note"><span>◎</span> Powered by public YouTube Music charts. Your collection lives in Navidrome.</div>
+            </div>
+            <div id="music-view-storage" class="hidden">
+                <section class="music-library-section">
+                    <div class="music-section-heading"><div><span class="music-eyebrow">CURATED BY YOU</span><h2>A collection worth keeping.</h2><p>Every song, artist and album. Know exactly where your space goes.</p></div><button id="music-refresh-library" class="music-quiet-btn">↻ Refresh library</button></div>
+                    <div id="music-storage-overview" class="music-storage-overview"></div>
+                    <div class="music-storage-columns"><div class="music-storage-card"><div class="music-card-heading"><h3>Space by artist</h3><button class="music-text-button" data-show-group="artists">View all ↗</button></div><div id="music-largest-artists"></div></div><div class="music-storage-card"><div class="music-card-heading"><h3>Space by album</h3><button class="music-text-button" data-show-group="albums">View all ↗</button></div><div id="music-largest-albums"></div></div></div>
+                    <div class="music-library-controls"><div class="music-library-tabs" aria-label="Library view"><button class="music-library-btn active" data-group="tracks">Songs</button><button class="music-library-btn" data-group="albums">Albums</button><button class="music-library-btn" data-group="artists">Artists</button></div><input id="music-library-search" type="search" placeholder="Filter your collection" aria-label="Filter your collection"><select id="music-library-sort" aria-label="Sort collection"><option value="size">Largest first</option><option value="name">Name A–Z</option><option value="artist">Artist A–Z</option><option value="recent">Recently updated</option></select></div>
+                    <div id="music-library-list" class="music-library-list" aria-live="polite"></div><div class="music-library-footer"><span id="music-library-count"></span><button id="music-library-more" class="music-quiet-btn hidden">Load more</button></div>
+                </section>
+            </div>
+            <div id="music-view-activity" class="hidden"><div class="music-section-heading"><div><span class="music-eyebrow">FROM DISCOVERY TO YOUR LIBRARY</span><h2>Your downloads</h2><p>Follow imports as they make their way into Navidrome.</p></div></div><div id="music-activity" aria-live="polite"></div></div>
+            <dialog id="music-detail-dialog" class="music-dialog" aria-labelledby="music-detail-title"><div class="music-dialog-toolbar"><button id="music-detail-back" class="music-quiet-btn hidden">← Back</button><span>VINIZ / EXPLORE</span><button id="music-detail-close" class="music-icon-btn" aria-label="Close details">×</button></div><div id="music-detail-content"></div></dialog>
+            <dialog id="music-player-dialog" class="music-player-dialog" aria-label="YouTube music player"><div class="music-dialog-toolbar"><strong id="music-player-title">Now playing</strong><button id="music-player-close" class="music-icon-btn" aria-label="Close player">×</button></div><div id="music-video-player"></div><p>Playing on YouTube · Some recordings may require opening YouTube.</p></dialog>
         </main>
 
         <!-- DASHBOARD TAB -->
-        <main class="tab-panel active" id="tab-dashboard">
+        <main class="tab-panel" id="tab-dashboard">
             <section id="now-playing-section" class="hidden">
                 <div class="now-playing-card">
                     <div class="now-playing-glow"></div>
@@ -522,28 +517,28 @@
 
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-nav" id="mobile-nav">
-        <button class="mobile-nav-btn active" data-mtab="dashboard">
-            <span class="nav-icon">📊</span>
-            <span>Home</span>
+        <button class="mobile-nav-btn" data-mtab="dashboard">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+            <span>Listening</span>
         </button>
         <button class="mobile-nav-btn" data-mtab="discover">
-            <span class="nav-icon">🔍</span>
-            <span>Discover</span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></span>
+            <span>For you</span>
         </button>
-        <button class="mobile-nav-btn" data-mtab="music">
-            <span class="nav-icon">♫</span>
+        <button class="mobile-nav-btn active" data-mtab="music">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 8l12-2"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="18" cy="16" rx="3" ry="2.5"/></svg></span>
             <span>Music</span>
         </button>
         <button class="mobile-nav-btn" data-mtab="insights">
-            <span class="nav-icon">📈</span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18 9 12l4 3 8-11M15 4h6v6"/></svg></span>
             <span>Insights</span>
         </button>
         <button class="mobile-nav-btn" data-mtab="library">
-            <span class="nav-icon">📚</span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 7 9-4 9 4-9 4-9-4Zm0 5 9 4 9-4M3 17l9 4 9-4"/></svg></span>
             <span>Library</span>
         </button>
         <button class="mobile-nav-btn" data-mtab="year">
-            <span class="nav-icon">🎉</span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg></span>
             <span>Year</span>
         </button>
     </nav>

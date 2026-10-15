@@ -73,17 +73,17 @@ Steps:
 
 ## Music discovery and library management
 
-Viniz can also show popular and recent YouTube music videos, Spotify search and new releases, and a sortable view of the music indexed by Navidrome. YouTube discovery uses `yt-dlp` to search public YouTube metadata and needs no API key; results are cached for ten minutes to limit requests. Popular and recent feeds are ranked YouTube searches, not official chart positions. YouTube videos play through YouTube's embedded player. Spotify previews appear only when Spotify provides a preview clip; otherwise, the card opens Spotify. Spotify credentials stay in the server environment.
+Viniz opens into a dedicated music discovery dashboard inspired by media request libraries: country charts, artwork, artist pages, album tracklists, playback, download activity and collection management.
 
-To enable Spotify discovery, copy `.env.example` to `.env` (keep `.env` private) and add credentials from a Spotify developer app:
+- **Country charts:** choose Worldwide or any supported YouTube Music chart country. The feed uses public daily/top music video chart playlists, rather than keyword search or the server's IP location. Chart artists include ranks and movement when YouTube supplies them.
+- **Artist and album pages:** click an artist for songs, albums, singles and related artists; click an album for its tracklist. Search returns songs, artists and albums separately.
+- **Releases:** recent albums/singles from the selected country's leading chart artists, ordered by release year. This is a discovery selection, not an exhaustive list of every new release in that country.
+- **Collection:** audio storage totals, free drive space, per-artist and per-album storage shares, complete sortable lists, and exact artist/album song drilldowns. Audio totals come from Navidrome and exclude artwork and lyric sidecars.
+- **Downloads:** progress and logs for imports, saved in the browser so an active job can reconnect after a refresh. Saved songs are marked in discovery when their artist and title match the library.
 
-```dotenv
-MUSIC_REGION=US
-SPOTIFY_CLIENT_ID=your-spotify-client-id
-SPOTIFY_CLIENT_SECRET=your-spotify-client-secret
-```
+Public catalog metadata comes from `ytmusicapi` through `music_provider.py`; downloads use the existing `yt-dlp` importer. No YouTube API key or Spotify account is required. Catalog responses are cached for 15 minutes, concurrent duplicate requests share one lookup, and provider work is limited to four processes. The optional Spotify discovery API remains available for clients with server credentials, but the dashboard uses YouTube Music.
 
-YouTube discovery and the Navidrome storage view need no provider credentials. Restart Viniz after changing Spotify credentials.
+Rebuild and deploy with `docker compose up -d --build`. If you maintain Spotify API clients, `.env.example` documents the optional credentials. The app's service worker cache is versioned to load the redesigned interface.
 
 The import action is enabled in the local Docker Compose setup. It asks for confirmation that you are authorized to download the selected recording, then uses the existing `scripts/import-music.py` workflow. It does not download audio through Spotify. Navidrome scans the music folder on its configured schedule. Deleting a song permanently removes its audio file (and its matching `.lrc` sidecar) from `/mnt/cloud_storage/music`; Viniz hides it immediately while Navidrome updates its index on its next scan.
 

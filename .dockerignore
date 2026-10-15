@@ -1,4 +1,8 @@
 node_modules
+data
+navidrome
+__pycache__
+tests/fixtures
 .git
 .env
 .env.*

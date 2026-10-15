@@ -1518,7 +1518,7 @@ function initSwipeNavigation() {
   
   document.addEventListener('touchstart', (e) => {
     if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || 
-        e.target.closest('.modal-overlay') || e.target.closest('#player-bar')) return;
+        e.target.closest('.modal-overlay') || e.target.closest('dialog') || e.target.closest('.music-artists-rail') || e.target.closest('#player-bar')) return;
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
   }, { passive: true });
@@ -1540,6 +1540,7 @@ function initSwipeNavigation() {
 }
 
 function switchTab(tabName) {
+  document.body.classList.toggle('music-active', tabName === 'music');
   // Desktop tabs
   tabBtns.forEach(b => {
     b.classList.remove('active');

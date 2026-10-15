@@ -22,7 +22,6 @@ services:
       - MUSIC_IMPORT_SCRIPT=/app/import-music.py
       - MUSIC_IMPORT_PYTHON=/opt/music-env/bin/python
       - MUSIC_IMPORT_ENABLED=true
-      - MUSIC_REGION=${MUSIC_REGION:-US}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
     healthcheck:

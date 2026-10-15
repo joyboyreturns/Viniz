@@ -51,6 +51,7 @@ test.describe('Server Integration Test', () => {
             album_id TEXT,
             artist_id TEXT,
             duration INTEGER,
+            track_number INTEGER DEFAULT 1,
             title TEXT,
             artist TEXT,
             album TEXT DEFAULT '',
@@ -191,6 +192,35 @@ test.describe('Server Integration Test', () => {
         assert.strictEqual(body.summary.bytes, 4096);
         assert.strictEqual(body.rows[0].name, 'Manchild');
         assert.strictEqual(body.rows[0].artist, 'Sabrina Carpenter');
+    });
+
+    test('music artist and album drilldowns use exact matches and return audio storage', async () => {
+        for (const filter of ['artistName=Sabrina%20Carpenter', 'albumId=mc_album']) {
+            const res = await fetch(`http://localhost:4096/api/music/library?group=tracks&sort=track&${filter}`);
+            assert.strictEqual(res.status, 200);
+            const body = await res.json();
+            assert.deepStrictEqual(body.selection, { tracks: 1, bytes: 4096 });
+            assert.strictEqual(body.rows[0].id, 'mc1');
+            assert.strictEqual(body.rows[0].track_number, 1);
+        }
+        const wrongArtist = await fetch('http://localhost:4096/api/music/library?artistName=Sabrina');
+        assert.strictEqual((await wrongArtist.json()).total, 0, 'Artist drilldown must not match a substring');
+        const grouped = await fetch('http://localhost:4096/api/music/library?group=albums');
+        const albums = await grouped.json();
+        assert.strictEqual(albums.rows[0].id, 'mc_album');
+        assert.strictEqual(albums.largestAlbums[0].bytes, 4096);
+        assert.strictEqual(albums.largestArtists[0].name, 'Sabrina Carpenter');
+    });
+
+    test('music countries and catalog validation do not require provider credentials', async () => {
+        const response = await fetch('http://localhost:4096/api/music/config');
+        const config = await response.json();
+        assert.ok(config.countries.some(country => country.code === 'ZZ'));
+        assert.ok(config.countries.some(country => country.code === 'JP'));
+        assert.strictEqual(config.youtube, true);
+        for (const endpoint of ['/api/music/discover?country=XX', '/api/music/discover?feed=search', '/api/music/browse/artist/bad']) {
+            assert.strictEqual((await fetch(`http://localhost:4096${endpoint}`)).status, 400);
+        }
     });
 
     test('music delete removes the file and hides it from the library immediately', async () => {

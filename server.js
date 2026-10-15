@@ -5,11 +5,9 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { spawn } = require('child_process');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
 const { randomUUID } = require('crypto');
 const { db, naviDb, ready: dbReady } = require('./database');
-const execFileAsync = promisify(execFile);
+const { requestMusic, countries, countryList } = require('./music-provider');
 
 let utcOffset = 5.5;
 db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
@@ -32,45 +30,35 @@ let spotifyTokenExpiresAt = 0;
 const musicImportJobs = new Map();
 let activeMusicImport = false;
 const recentlyDeletedMusic = new Map();
-const youtubeDiscoveryCache = new Map();
-
-async function discoverYouTubeMusic(feed, query) {
-    const mode = feed === 'search' ? `search:${query}` : feed;
-    const cached = youtubeDiscoveryCache.get(mode);
-    if (cached && cached.expiresAt > Date.now()) return cached.items;
-
-    const searchTerm = feed === 'search'
-        ? query
-        : feed === 'recent'
-            ? `new official music video ${new Date().getFullYear()}`
-            : `trending popular music videos ${new Date().getFullYear()}`;
-    const ytDlpPath = process.env.MUSIC_YTDLP_PATH || '/opt/music-env/bin/yt-dlp';
-    const searchPrefix = feed === 'recent' ? 'ytsearchdate24:' : 'ytsearch24:';
-    const { stdout } = await execFileAsync(ytDlpPath, [
-        '--no-config', '--flat-playlist', '--dump-single-json', '--no-warnings',
-        '--no-call-home', '--skip-download', '--sleep-requests', '1', `${searchPrefix}${searchTerm}`
-    ], { timeout: 30_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
-    const result = JSON.parse(stdout);
-    const items = (result.entries || []).filter(item => item && item.id).map(item => {
-        const url = item.webpage_url || `https://www.youtube.com/watch?v=${encodeURIComponent(item.id)}`;
-        return {
-            id: item.id,
-            title: item.title || 'Untitled',
-            artist: item.channel || item.uploader || 'YouTube',
-            image: item.thumbnail || item.thumbnails?.at(-1)?.url || '',
-            url,
-            embedUrl: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(item.id)}`,
-            publishedAt: item.release_timestamp ? new Date(item.release_timestamp * 1000).toISOString() :
-                item.upload_date && /^\d{8}$/.test(item.upload_date) ? `${item.upload_date.slice(0, 4)}-${item.upload_date.slice(4, 6)}-${item.upload_date.slice(6, 8)}` : '',
-            views: Number(item.view_count) || 0,
-            provider: 'YouTube'
-        };
-    });
-    // Cache public search results to keep refreshes responsive and reduce requests to YouTube.
-    if (youtubeDiscoveryCache.size >= 64) youtubeDiscoveryCache.delete(youtubeDiscoveryCache.keys().next().value);
-    youtubeDiscoveryCache.set(mode, { items, expiresAt: Date.now() + 10 * 60_000 });
-    return items;
+function withLocalMusic(data) {
+    if (!naviDb) return data;
+    const normalize = text => String(text || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const rows = naviDb.prepare('SELECT id, title, artist, album, album_id FROM media_file WHERE missing = 0').all()
+        .filter(row => !recentlyDeletedMusic.has(row.id));
+    const songs = new Map(rows.map(row => [normalize(row.artist) + ':' + normalize(row.title), row]));
+    const albums = new Map(rows.map(row => [normalize(row.artist) + ':' + normalize(row.album), row]));
+    const decorate = item => {
+        const key = normalize(item.artist || item.artists?.[0]?.name) + ':' + normalize(item.title);
+        const match = (item.kind === 'album' ? albums : songs).get(key);
+        return match ? { ...item, localId: match.id, localAlbumId: match.album_id } : item;
+    };
+    return { ...data, items: (data.items || []).map(decorate), albums: (data.albums || []).map(decorate) };
 }
+
+app.get('/api/music/browse/:kind/:id', async (req, res) => {
+    const { kind, id } = req.params;
+    if (!['artist', 'album'].includes(kind) || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) {
+        return res.status(400).json({ error: 'Invalid artist or album.' });
+    }
+    const country = String(req.query.country || 'ZZ').toUpperCase();
+    if (!countries.includes(country)) return res.status(400).json({ error: 'Unsupported chart country.' });
+    try {
+        res.json(withLocalMusic(await requestMusic(kind, country, id)));
+    } catch (error) {
+        console.error('Music browse error:', error.message);
+        res.status(error.status || 502).json({ error: error.status === 429 ? error.message : 'Could not load this artist or album. Please retry.' });
+    }
+});
 
 async function getSpotifyToken() {
     if (spotifyToken && Date.now() < spotifyTokenExpiresAt - 30_000) return spotifyToken;
@@ -96,18 +84,21 @@ app.get('/api/music/config', (req, res) => {
         spotify: Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET),
         youtube: true,
         import: process.env.MUSIC_IMPORT_ENABLED === 'true',
-        library: Boolean(naviDb && process.env.MUSIC_LIBRARY_PATH)
+        library: Boolean(naviDb && process.env.MUSIC_LIBRARY_PATH),
+        countries: countryList
     });
 });
 
 app.get('/api/music/discover', async (req, res) => {
-    const source = req.query.source === 'youtube' ? 'youtube' : 'spotify';
-    const feed = ['trending', 'recent', 'search'].includes(req.query.feed) ? req.query.feed : 'trending';
+    const source = req.query.source === 'spotify' ? 'spotify' : 'youtube';
+    const feed = ['trending', 'recent', 'search', 'artists'].includes(req.query.feed) ? req.query.feed : 'trending';
     const query = String(req.query.q || '').trim().slice(0, 120);
+    const country = String(req.query.country || 'ZZ').toUpperCase();
+    if (!countries.includes(country)) return res.status(400).json({ error: 'Unsupported chart country.' });
+    if (feed === 'search' && !query) return res.status(400).json({ error: 'Enter a song, artist or album to search.' });
     try {
         if (source === 'youtube') {
-            const items = await discoverYouTubeMusic(feed, query || 'music');
-            return res.json({ source, items });
+            return res.json(withLocalMusic(await requestMusic(feed, country, query)));
         }
 
         const token = await getSpotifyToken();
@@ -115,8 +106,8 @@ app.get('/api/music/discover', async (req, res) => {
         const endpoint = feed === 'search'
             ? `https://api.spotify.com/v1/search?${new URLSearchParams({ q: query, type: 'track', limit: '24' })}`
             : feed === 'recent'
-                ? `https://api.spotify.com/v1/browse/new-releases?${new URLSearchParams({ limit: '24', country: process.env.MUSIC_REGION || 'US' })}`
-                : `https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDwVN2tF/items?limit=50&market=${encodeURIComponent(process.env.MUSIC_REGION || 'US')}`;
+                ? `https://api.spotify.com/v1/browse/new-releases?${new URLSearchParams({ limit: '24', country: (country === 'ZZ' ? 'US' : country) })}`
+                : `https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDwVN2tF/items?limit=50&market=${encodeURIComponent((country === 'ZZ' ? 'US' : country))}`;
         const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12_000) });
         const data = await response.json();
         if (!response.ok) return res.status(response.status).json({ error: data.error?.message || 'Spotify discovery failed.' });
@@ -143,7 +134,7 @@ app.get('/api/music/discover', async (req, res) => {
         })) });
     } catch (error) {
         console.error('Music discovery error:', error.message);
-        res.status(502).json({ error: 'Music discovery service is unavailable right now.' });
+        res.status(error.status || 502).json({ error: error.status === 429 ? error.message : 'YouTube Music is unavailable right now. Please retry shortly.' });
     }
 });
 
@@ -151,37 +142,50 @@ app.get('/api/music/library', (req, res) => {
     if (!naviDb) return res.status(503).json({ error: 'Navidrome database is not available.' });
     const group = ['tracks', 'albums', 'artists'].includes(req.query.group) ? req.query.group : 'tracks';
     const query = String(req.query.q || '').trim().slice(0, 100);
+    const artist = String(req.query.artistName || '').slice(0, 200);
+    const albumId = String(req.query.albumId || '').slice(0, 200);
     const page = Math.min(10000, Math.max(1, parseInt(req.query.page, 10) || 1));
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 30));
-    const sort = ['size', 'name', 'artist', 'recent'].includes(req.query.sort) ? req.query.sort : 'size';
+    const sort = ['size', 'name', 'artist', 'recent', 'track'].includes(req.query.sort) ? req.query.sort : 'size';
     const now = Date.now();
     for (const [id, deletedAt] of recentlyDeletedMusic) if (now - deletedAt > 10 * 60_000) recentlyDeletedMusic.delete(id);
     const hiddenIds = [...recentlyDeletedMusic.keys()];
-    const hiddenClause = hiddenIds.length ? `AND id NOT IN (${hiddenIds.map((_, i) => `@hidden${i}`).join(',')})` : '';
-    const hiddenParams = Object.fromEntries(hiddenIds.map((id, i) => [`hidden${i}`, id]));
+    const hidden = hiddenIds.length ? `AND id NOT IN (${hiddenIds.map((_, i) => `@hidden${i}`).join(',')})` : '';
+    const baseParams = Object.fromEntries(hiddenIds.map((id, i) => [`hidden${i}`, id]));
+    const filters = [];
+    const params = { ...baseParams };
+    if (artist) { filters.push('artist = @artistName'); params.artistName = artist; }
+    if (albumId) { filters.push('album_id = @albumId'); params.albumId = albumId; }
+    if (query) {
+        filters.push(group === 'artists' ? 'artist LIKE @q' : group === 'albums' ? '(album LIKE @q OR artist LIKE @q)' : '(title LIKE @q OR artist LIKE @q OR album LIKE @q)');
+        params.q = `%${query}%`;
+    }
+    const where = `WHERE missing = 0 ${hidden} ${filters.length ? 'AND ' + filters.join(' AND ') : ''}`;
     try {
         const summary = naviDb.prepare(`SELECT COUNT(*) AS tracks, COALESCE(SUM(size), 0) AS bytes,
-            COUNT(DISTINCT artist) AS artists, COUNT(DISTINCT album_id) AS albums FROM media_file WHERE missing = 0 ${hiddenClause}`).get(hiddenParams);
-        const groupSql = group === 'artists'
-            ? `SELECT artist AS name, '' AS artist, '' AS album, COUNT(*) AS tracks, SUM(size) AS bytes, '' AS id
-               FROM media_file WHERE missing = 0 ${hiddenClause} ${query ? 'AND artist LIKE @q' : ''} GROUP BY artist`
+            COUNT(DISTINCT artist) AS artists, COUNT(DISTINCT album_id) AS albums FROM media_file WHERE missing = 0 ${hidden}`).get(baseParams);
+        let disk = null;
+        try {
+            if (process.env.MUSIC_LIBRARY_PATH) {
+                const stat = fs.statfsSync(process.env.MUSIC_LIBRARY_PATH);
+                disk = { total: stat.blocks * stat.bsize, free: stat.bavail * stat.bsize };
+            }
+        } catch (_) { /* Audio totals remain available when disk statistics are not. */ }
+        const sql = group === 'artists'
+            ? `SELECT artist AS name, artist, '' AS album, COUNT(*) AS tracks, SUM(size) AS bytes,
+                MIN(artist_id) AS id, MIN(album_id) AS album_id, MAX(updated_at) AS updatedAt FROM media_file ${where} GROUP BY artist`
             : group === 'albums'
-                ? `SELECT album AS name, album_artist AS artist, album AS album, COUNT(*) AS tracks, SUM(size) AS bytes, album_id AS id
-                   FROM media_file WHERE missing = 0 ${hiddenClause} ${query ? 'AND (album LIKE @q OR artist LIKE @q)' : ''} GROUP BY album_id, album, album_artist`
-                : `SELECT title AS name, artist, album, album_id, duration, size AS bytes, id FROM media_file
-                   WHERE missing = 0 ${hiddenClause} ${query ? 'AND (title LIKE @q OR artist LIKE @q OR album LIKE @q)' : ''}`;
-        const order = sort === 'name' ? 'name COLLATE NOCASE ASC' : sort === 'artist' ? 'artist COLLATE NOCASE ASC, name COLLATE NOCASE ASC' : sort === 'recent' ? (group === 'tracks' ? 'updated_at DESC, name COLLATE NOCASE ASC' : 'MAX(updated_at) DESC, name COLLATE NOCASE ASC') : 'bytes DESC, name COLLATE NOCASE ASC';
-        const rows = naviDb.prepare(`${groupSql} ORDER BY ${order} LIMIT @limit OFFSET @offset`).all({
-            ...hiddenParams, ...(query ? { q: `%${query}%` } : {}), limit, offset: (page - 1) * limit
-        });
-        const countRow = naviDb.prepare(`SELECT COUNT(*) AS total FROM (
-            SELECT ${group === 'artists' ? 'artist' : group === 'albums' ? 'album_id' : 'id'} FROM media_file
-            WHERE missing = 0 ${hiddenClause} ${query ? (group === 'artists' ? 'AND artist LIKE @q' : group === 'albums' ? 'AND (album LIKE @q OR artist LIKE @q)' : 'AND (title LIKE @q OR artist LIKE @q OR album LIKE @q)') : ''}
-            GROUP BY ${group === 'artists' ? 'artist' : group === 'albums' ? 'album_id' : 'id'}
-        )`).get({ ...hiddenParams, ...(query ? { q: `%${query}%` } : {}) });
-        const largestArtists = naviDb.prepare(`SELECT artist AS name, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hiddenClause} GROUP BY artist ORDER BY bytes DESC LIMIT 8`).all(hiddenParams);
-        const largestAlbums = naviDb.prepare(`SELECT album AS name, album_artist AS artist, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hiddenClause} GROUP BY album_id, album, album_artist ORDER BY bytes DESC LIMIT 8`).all(hiddenParams);
-        res.json({ summary, rows, total: countRow.total, page, limit, group, sort, largestArtists, largestAlbums });
+                ? `SELECT album AS name, album_artist AS artist, album, COUNT(*) AS tracks, SUM(size) AS bytes,
+                    album_id AS id, album_id, MAX(updated_at) AS updatedAt FROM media_file ${where} GROUP BY album_id, album, album_artist`
+                : `SELECT title AS name, artist, album, album_id, duration, track_number, size AS bytes, id, updated_at AS updatedAt FROM media_file ${where}`;
+        const order = sort === 'name' ? 'name COLLATE NOCASE ASC' : sort === 'artist' ? 'artist COLLATE NOCASE ASC, name COLLATE NOCASE ASC'
+            : sort === 'recent' ? 'updatedAt DESC, name COLLATE NOCASE ASC' : sort === 'track' && group === 'tracks' ? 'track_number ASC, name COLLATE NOCASE ASC' : 'bytes DESC, name COLLATE NOCASE ASC';
+        const rows = naviDb.prepare(`${sql} ORDER BY ${order} LIMIT @limit OFFSET @offset`).all({ ...params, limit, offset: (page - 1) * limit });
+        const total = naviDb.prepare(`SELECT COUNT(*) AS total FROM (${sql})`).get(params).total;
+        const selection = naviDb.prepare(`SELECT COUNT(*) AS tracks, COALESCE(SUM(size), 0) AS bytes FROM media_file ${where}`).get(params);
+        const largestArtists = naviDb.prepare(`SELECT artist AS name, artist, COUNT(*) AS tracks, SUM(size) AS bytes, MIN(album_id) AS album_id FROM media_file WHERE missing = 0 ${hidden} GROUP BY artist ORDER BY bytes DESC LIMIT 8`).all(baseParams);
+        const largestAlbums = naviDb.prepare(`SELECT album AS name, album_artist AS artist, album_id AS id, album_id, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hidden} GROUP BY album_id, album, album_artist ORDER BY bytes DESC LIMIT 8`).all(baseParams);
+        res.json({ summary, disk, selection, rows, total, page, limit, group, sort, largestArtists, largestAlbums });
     } catch (error) {
         console.error('Music library error:', error.message);
         res.status(500).json({ error: 'Could not read the Navidrome library.' });

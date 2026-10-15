@@ -1,9 +1,11 @@
-const CACHE_NAME = 'viniz-v2';
+const CACHE_NAME = 'viniz-v3-music';
 const ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/player.css',
+  '/music.css',
+  '/music.js',
   '/app.js',
   '/player.js',
   '/manifest.json'
@@ -32,6 +34,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/') ||
       event.request.url.includes('/rest/') ||
       event.request.method !== 'GET') {
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then(cached => cached || caches.match('/'))));
     return;
   }
 
