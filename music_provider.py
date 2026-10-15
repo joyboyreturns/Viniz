@@ -2,6 +2,8 @@
 import json
 import sys
 import requests
+import re
+import unicodedata
 from ytmusicapi import YTMusic
 
 
@@ -61,6 +63,32 @@ def songs(items, **kwargs):
 
 def run(operation, country, value):
     y = YTMusic(language="en", location="US" if country == "ZZ" else country, requests_session=TimedSession())
+    def normalized(text):
+        return re.sub(r"[^\w]", "", unicodedata.normalize("NFKC", str(text or "")).casefold())
+    if operation == "artist-art":
+        matches = y.search(value, filter="artists", limit=10)
+        hit = next((a for a in matches if normalized(a.get("artist") or a.get("title")) == normalized(value)), None)
+        return {"image": image(hit) if hit else ""}
+    if operation in ("song-art", "album-art"):
+        wanted = json.loads(value)
+        def clean_title(text):
+            text = str(text or "")
+            if " - " in text and normalized(text.split(" - ", 1)[0]) in {normalized(a) for a in wanted["artists"]}:
+                text = text.split(" - ", 1)[1]
+            text = re.sub(r"[\[(](?:official(?: music)?(?: video| audio)?|lyrics?|audio|visualizer|4k(?: remaster)?)[^\])]*[\])]", "", text, flags=re.I)
+            text = re.sub(r"\s*[\[(]?\s*\b(?:feat\.?|ft\.?|featuring)\s+.*$", "", text, flags=re.I)
+            return normalized(text.strip())
+        search_title = wanted["title"]
+        if " - " in search_title and normalized(search_title.split(" - ", 1)[0]) in {normalized(a) for a in wanted["artists"]}:
+            search_title = search_title.split(" - ", 1)[1]
+        matches = y.search(search_title + " " + " ".join(wanted["artists"]), filter="albums" if operation == "album-art" else "songs", limit=10)
+        hit = next((a for a in matches if clean_title(a.get("title")) == clean_title(wanted["title"])
+                    and set(normalized(n) for n in wanted["artists"]) & set(normalized(n.get("name")) for n in a.get("artists", []))), None)
+        if not hit and operation == "song-art":
+            videos = y.search(search_title + " " + " ".join(wanted["artists"]), filter="videos", limit=10)
+            hit = next((a for a in videos if clean_title(a.get("title")) == clean_title(wanted["title"])
+                        and set(normalized(n) for n in wanted["artists"]) & set(normalized(n.get("name")) for n in a.get("artists", []))), None)
+        return {"image": image(hit) if hit else ""}
     if operation in ("trending", "artists", "recent"):
         chart = y.get_charts(country)
         # Explicit country chart selection matters: YouTube's home/explore shelves can

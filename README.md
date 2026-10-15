@@ -87,6 +87,10 @@ Public catalog metadata comes from `ytmusicapi` through `music_provider.py`; dow
 
 Rebuild and deploy with `docker compose up -d --build`. If you maintain Spotify API clients, `.env.example` documents the optional credentials. The app's service worker cache is versioned to load the redesigned interface.
 
+Artist credits are indexed individually in Viniz: a collaboration belongs to every credited artist across artist pages, playback, listening statistics and storage views. Original song credits remain visible. Artist storage includes each credited song; collection storage counts each audio file once. Multiple-value Navidrome credits are preferred, and legacy comma/featuring strings are normalized without splitting band names on `&` or `/`.
+
+Artwork is cached in `data/artwork/`. Viniz uses existing Navidrome covers first, then validated YouTube Music artist/song matches, with a local recording match for legacy upload titles. **Repair artwork** in My collection refreshes missing portraits and covers; its status is available at `GET /api/artwork/repair`. Unmatched entries use a decorative fallback without being cached as successful artwork.
+
 The import action is enabled in the local Docker Compose setup. It asks for confirmation that you are authorized to download the selected recording, then uses the existing `scripts/import-music.py` workflow. It does not download audio through Spotify. Navidrome scans the music folder on its configured schedule. Deleting a song permanently removes its audio file (and its matching `.lrc` sidecar) from `/mnt/cloud_storage/music`; Viniz hides it immediately while Navidrome updates its index on its next scan.
 
 ## License

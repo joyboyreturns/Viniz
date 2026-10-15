@@ -15,7 +15,7 @@
   };
   const time = seconds => `${Math.floor((Number(seconds) || 0) / 60)}:${String(Math.floor((Number(seconds) || 0) % 60)).padStart(2, '0')}`;
   const artwork = value => {
-    if (String(value).startsWith('/api/cover-art/')) return value;
+    if (String(value).startsWith('/api/cover-art/')) return value + (value.includes('?') ? '&' : '?') + 'v=credits1';
     try { const url = new URL(value); return url.protocol === 'https:' ? url.href : ''; } catch (_) { return ''; }
   };
   const cover = item => artwork(item.image) || COVER_PLACEHOLDER;
@@ -31,13 +31,16 @@
   const loading = text => `<div class="music-loading">${esc(text)}</div>`;
   const skeletons = () => Array.from({ length: 12 }, () => '<div class="music-skeleton" aria-hidden="true"></div>').join('');
   function imageFallbacks(target) {
-    target.querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.src = COVER_PLACEHOLDER; }, { once: true }));
+    target.querySelectorAll('img').forEach(img => {
+      if (img.getAttribute('src')?.startsWith('/api/cover-art/') && !img.src.includes('v=credits1')) img.src += (img.src.includes('?') ? '&' : '?') + 'v=credits1';
+      img.addEventListener('error', () => { img.src = COVER_PLACEHOLDER; }, { once: true });
+    });
   }
   function artistLink(person, local = false) {
     const button = document.createElement('button');
     button.className = 'music-artist-link'; button.textContent = person.name || 'Unknown artist';
     button.addEventListener('click', () => {
-      if (local) openDetail({ kind: 'local-artist', name: person.name });
+      if (local) openDetail({ kind: 'local-artist', name: person.name, id: person.id });
       else if (person.id) openDetail({ kind: 'artist', id: person.id });
       else searchFor(person.name);
     });
@@ -185,7 +188,7 @@
           const records = await api(`/api/music/library?${new URLSearchParams({ group: 'albums', artistName: descriptor.name, limit: '100', sort: 'name' })}`);
           albums = records.rows.map(localAlbum);
         }
-        data = { kind: descriptor.kind, title: descriptor.name || library.rows[0]?.album || 'Album', image: library.rows[0] ? `/api/cover-art/${encodeURIComponent(library.rows[0].album_id)}` : '',
+        data = { kind: descriptor.kind, title: descriptor.name || library.rows[0]?.album || 'Album', image: descriptor.kind === 'local-artist' && descriptor.id ? `/api/cover-art/${encodeURIComponent(descriptor.id)}` : library.rows[0] ? `/api/cover-art/${encodeURIComponent(library.rows[0].album_id)}` : '',
           artist: descriptor.kind === 'local-album' ? library.rows[0]?.artist : '', items: library.rows.map(localSong), albums, selection: library.selection, total: library.total, params, page: 1 };
       } else data = await api(`/api/music/browse/${encodeURIComponent(descriptor.kind)}/${encodeURIComponent(descriptor.id)}?country=${state.country}`);
       if (sequence !== detailSequence || !detailDialog.open) return;
@@ -197,11 +200,11 @@
     }
   }
   function localSong(row) {
-    return { kind: 'local-song', id: row.id, localId: row.id, title: row.name, artist: row.artist, album: row.album, albumId: row.album_id, localAlbumId: row.album_id,
+    return { kind: 'local-song', id: row.id, localId: row.id, title: row.name, artist: row.artist, artists: row.artists, album: row.album, albumId: row.album_id, localAlbumId: row.album_id,
       durationSeconds: row.duration, duration: time(row.duration), bytes: row.bytes, image: `/api/cover-art/${encodeURIComponent(row.album_id || row.id)}` };
   }
   function localAlbum(row) {
-    return { kind: 'local-album', id: row.id, title: row.name, artist: row.artist, image: `/api/cover-art/${encodeURIComponent(row.album_id || row.id)}`, bytes: row.bytes, year: bytes(row.bytes), type: `${row.tracks} songs` };
+    return { kind: 'local-album', id: row.id, title: row.name, artist: row.artist, artists: row.artists, image: `/api/cover-art/${encodeURIComponent(row.album_id || row.id)}`, bytes: row.bytes, year: bytes(row.bytes), type: `${row.tracks} songs` };
   }
   function trackRow(item, index) {
     const row = document.createElement('div'); row.className = 'music-detail-track';
@@ -264,7 +267,7 @@
       items.forEach(item => {
         const percent = s.bytes ? item.bytes / s.bytes * 100 : 0;
         const button = document.createElement('button'); button.className = 'music-breakdown-row';
-        button.innerHTML = `<img src="/api/cover-art/${encodeURIComponent(item.album_id || item.id || '')}" alt="" loading="lazy"><div class="music-breakdown-main"><div><span>${esc(item.name)}${type === 'album' ? ` · ${esc(item.artist)}` : ''}</span><strong>${bytes(item.bytes)}</strong></div><i><b style="width:${Math.max(.5, percent)}%"></b></i></div><small>${percent.toFixed(1)}%</small>`;
+        button.innerHTML = `<img src="/api/cover-art/${encodeURIComponent(type === 'artist' ? item.id : item.album_id || item.id || '')}" alt="" loading="lazy"><div class="music-breakdown-main"><div><span>${esc(item.name)}${type === 'album' ? ` · ${esc(item.artist)}` : ''}</span><strong>${bytes(item.bytes)}</strong></div><i><b style="width:${Math.max(.5, percent)}%"></b></i></div><small>${percent.toFixed(1)}%</small>`;
         button.onclick = () => openDetail({ kind: `local-${type}`, id: item.id, name: item.name }); target.append(button);
       }); imageFallbacks(target);
     };
@@ -359,6 +362,25 @@
   $('#music-refresh-discovery').onclick = () => loadDiscovery();
   $('#music-jump-artists').onclick = () => { state.feed = 'artists'; state.query = ''; $('#music-search-input').value = ''; loadDiscovery(); $('#music-results-title').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   $('#music-all-artists').onclick = $('#music-jump-artists').onclick;
+  $('#music-repair-artwork').onclick = async () => {
+    const button = $('#music-repair-artwork'); button.disabled = true; button.textContent = 'Repairing…';
+    try {
+      await api('/api/artwork/repair', { method: 'POST' });
+      notify('Checking artist portraits and album covers…');
+      for (;;) {
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        const job = await api('/api/artwork/repair');
+        button.textContent = `Artwork ${job.completed}/${job.total}`;
+        if (job.status === 'failed') throw new Error('Artwork repair could not finish. Please retry.');
+        if (job.status !== 'running') {
+          document.querySelectorAll('img[src*="/api/cover-art/"]').forEach(img => img.src += `${img.src.includes('?') ? '&' : '?'}repair=${Date.now()}`);
+          notify(job.missing?.length ? `Artwork refreshed. ${job.missing.length} entries have no verified image.` : 'Artwork refreshed for your collection.', 'success');
+          break;
+        }
+      }
+    } catch (error) { notify(error.message, 'error'); }
+    finally { button.disabled = false; button.textContent = 'Repair artwork'; }
+  };
   $('#music-refresh-library').onclick = () => loadLibrary(true);
   $('#music-library-sort').onchange = () => loadLibrary(true);
   $('#music-library-more').onclick = () => { state.page++; loadLibrary(false); };

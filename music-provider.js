@@ -26,6 +26,7 @@ async function requestMusic(operation, country, value = '') {
                 [path.join(__dirname, 'music_provider.py'), operation, country, value],
                 { timeout: 90_000, maxBuffer: 12 * 1024 * 1024, windowsHide: true });
             const data = JSON.parse(stdout);
+            if (operation.endsWith('-art') && !data.image) return data;
             if (cache.size >= 128) cache.delete(cache.keys().next().value);
             cache.set(key, { data, expires: Date.now() + 15 * 60_000 });
             return data;

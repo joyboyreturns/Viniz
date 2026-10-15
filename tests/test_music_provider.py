@@ -1,5 +1,7 @@
 import unittest
-from music_provider import song, songs
+import json
+from unittest.mock import patch
+from music_provider import song, songs, run
 
 
 class CatalogNormalizationTests(unittest.TestCase):
@@ -20,3 +22,20 @@ class CatalogNormalizationTests(unittest.TestCase):
         result = songs([{"title": "Deleted"}, {"videoId": "abcdefghijk", "isAvailable": False},
                         {"videoId": "01234567890", "title": "Available"}])
         self.assertEqual([item["title"] for item in result], ["Available"])
+
+
+class ArtworkMatchingTests(unittest.TestCase):
+    def lookup(self, title, candidate_title, artist="Camila Cabello"):
+        with patch("music_provider.YTMusic") as client:
+            client.return_value.search.return_value = [{"title": candidate_title, "artists": [{"name": artist}], "thumbnails": [{"url": "https://example.test/cover.jpg"}]}]
+            return run("song-art", "ZZ", json.dumps({"title": title, "artists": ["Camila Cabello"]}))
+
+    def test_legacy_youtube_title_clutter_matches_the_recording(self):
+        self.assertTrue(self.lookup("Camila Cabello - Havana (Audio) ft. Young Thug", "Havana (feat. Young Thug)")["image"])
+        self.assertTrue(self.lookup("Camila Cabello - Havana (Lyrics)", "Havana")["image"])
+
+    def test_unrelated_artist_is_rejected(self):
+        self.assertFalse(self.lookup("Havana", "Havana", "Different Artist")["image"])
+
+    def test_recording_versions_are_not_removed(self):
+        self.assertFalse(self.lookup("Havana (Live)", "Havana")["image"])

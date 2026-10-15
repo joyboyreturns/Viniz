@@ -1,4 +1,4 @@
-const CACHE_NAME = 'viniz-v4-studio';
+const CACHE_NAME = 'viniz-v5-credits';
 const ASSETS = [
   '/',
   '/index.html',

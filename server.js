@@ -8,6 +8,10 @@ const { spawn } = require('child_process');
 const { randomUUID } = require('crypto');
 const { db, naviDb, ready: dbReady } = require('./database');
 const { requestMusic, countries, countryList } = require('./music-provider');
+const { createArtistCredits, splitCredit, artistNameFromId, artistId } = require('./artist-credits');
+const artistCredits = createArtistCredits(db, naviDb);
+const { createArtwork, coverId } = require('./artwork');
+const artwork = createArtwork({ db, naviDb, requestMusic });
 
 let utcOffset = 5.5;
 db.get(`SELECT value FROM settings WHERE key = 'utc_offset'`, (err, row) => {
@@ -22,6 +26,16 @@ const PORT = process.env.PORT || 4096;
 app.use(cors());
 app.use(bodyParser.json({limit: '50mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use((req,res,next) => { if(req.method !== 'GET') res.on('finish', () => artistCredits.invalidate()); next(); });
+app.use('/api', async (req, res, next) => {
+    try {
+        await artistCredits.refresh();
+        const json=res.json.bind(res);
+        const enrich=value=>Array.isArray(value)?value.map(enrich):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,entry])=>[key,enrich(entry)]).concat(value.artist_name&&(value.track_name||value.album_name)&&!value.album_id&&!value.track_id?[['cover_id',coverId(value)]]:[])):value;
+        res.json=value=>json(enrich(value));
+        next();
+    } catch (error) { next(error); }
+});
 
 // A short-lived token cache keeps Spotify credentials on the server and avoids
 // requesting a new token for every discovery refresh.
@@ -154,7 +168,7 @@ app.get('/api/music/library', (req, res) => {
     const baseParams = Object.fromEntries(hiddenIds.map((id, i) => [`hidden${i}`, id]));
     const filters = [];
     const params = { ...baseParams };
-    if (artist) { filters.push('artist = @artistName'); params.artistName = artist; }
+    if (artist) { filters.push(`EXISTS (SELECT 1 FROM json_each(${artistCredits.creditExpression()}) WHERE json_extract(value,'$.id') = @artistKey)`); params.artistKey = artistId(artist); }
     if (albumId) { filters.push('album_id = @albumId'); params.albumId = albumId; }
     if (query) {
         filters.push(group === 'artists' ? 'artist LIKE @q' : group === 'albums' ? '(album LIKE @q OR artist LIKE @q)' : '(title LIKE @q OR artist LIKE @q OR album LIKE @q)');
@@ -164,6 +178,7 @@ app.get('/api/music/library', (req, res) => {
     try {
         const summary = naviDb.prepare(`SELECT COUNT(*) AS tracks, COALESCE(SUM(size), 0) AS bytes,
             COUNT(DISTINCT artist) AS artists, COUNT(DISTINCT album_id) AS albums FROM media_file WHERE missing = 0 ${hidden}`).get(baseParams);
+        summary.artists = naviDb.prepare(`SELECT COUNT(*) AS total FROM (${artistCredits.artistRows('WHERE missing=0 ' + hidden)})`).get(baseParams).total;
         let disk = null;
         try {
             if (process.env.MUSIC_LIBRARY_PATH) {
@@ -172,8 +187,7 @@ app.get('/api/music/library', (req, res) => {
             }
         } catch (_) { /* Audio totals remain available when disk statistics are not. */ }
         const sql = group === 'artists'
-            ? `SELECT artist AS name, artist, '' AS album, COUNT(*) AS tracks, SUM(size) AS bytes,
-                MIN(artist_id) AS id, MIN(album_id) AS album_id, MAX(updated_at) AS updatedAt FROM media_file ${where} GROUP BY artist`
+            ? (query || artist ? `SELECT * FROM (${artistCredits.artistRows(where)}) WHERE ${[query ? 'name LIKE @q' : '', artist ? 'id = @artistKey' : ''].filter(Boolean).join(' AND ')}` : artistCredits.artistRows(where))
             : group === 'albums'
                 ? `SELECT album AS name, album_artist AS artist, album, COUNT(*) AS tracks, SUM(size) AS bytes,
                     album_id AS id, album_id, MAX(updated_at) AS updatedAt FROM media_file ${where} GROUP BY album_id, album, album_artist`
@@ -183,9 +197,9 @@ app.get('/api/music/library', (req, res) => {
         const rows = naviDb.prepare(`${sql} ORDER BY ${order} LIMIT @limit OFFSET @offset`).all({ ...params, limit, offset: (page - 1) * limit });
         const total = naviDb.prepare(`SELECT COUNT(*) AS total FROM (${sql})`).get(params).total;
         const selection = naviDb.prepare(`SELECT COUNT(*) AS tracks, COALESCE(SUM(size), 0) AS bytes FROM media_file ${where}`).get(params);
-        const largestArtists = naviDb.prepare(`SELECT artist AS name, artist, COUNT(*) AS tracks, SUM(size) AS bytes, MIN(album_id) AS album_id FROM media_file WHERE missing = 0 ${hidden} GROUP BY artist ORDER BY bytes DESC LIMIT 8`).all(baseParams);
+        const largestArtists = naviDb.prepare(`${artistCredits.artistRows('WHERE missing=0 ' + hidden)} ORDER BY bytes DESC LIMIT 8`).all(baseParams);
         const largestAlbums = naviDb.prepare(`SELECT album AS name, album_artist AS artist, album_id AS id, album_id, COUNT(*) AS tracks, SUM(size) AS bytes FROM media_file WHERE missing = 0 ${hidden} GROUP BY album_id, album, album_artist ORDER BY bytes DESC LIMIT 8`).all(baseParams);
-        res.json({ summary, disk, selection, rows, total, page, limit, group, sort, largestArtists, largestAlbums });
+        res.json({ summary, disk, selection, rows: rows.map(row => ({ ...row, artists: splitCredit(row.artist) })), total, page, limit, group, sort, largestArtists, largestAlbums });
     } catch (error) {
         console.error('Music library error:', error.message);
         res.status(500).json({ error: 'Could not read the Navidrome library.' });
@@ -425,8 +439,8 @@ app.get('/api/stats/top-artists', (req, res) => {
             SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-            FROM history WHERE ${condition}
-            GROUP BY artist_name
+            FROM artist_history WHERE ${condition}
+            GROUP BY artist_id
             ORDER BY playtime DESC, plays DESC, views DESC LIMIT 50`, [], (err, rows) => {
         if (err) return res.status(500).json({error: err.message});
         res.json(rows);
@@ -441,26 +455,26 @@ app.get('/api/stats/artist/:name', (req, res) => {
             SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
             SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
             SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-            FROM history WHERE ${condition} AND artist_name = ?
-            GROUP BY artist_name`, [artistName], (err, summary) => {
+            FROM artist_history WHERE ${condition} AND artist_id = ?
+            GROUP BY artist_id`, [artistId(artistName)], (err, summary) => {
         if (err) return res.status(500).json({error: err.message});
         
         db.all(`SELECT track_name, MAX(track_id) as track_id, MAX(album_id) as album_id,
                 SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
                 SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
                 SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-                FROM history WHERE ${condition} AND artist_name = ?
+                FROM artist_history WHERE ${condition} AND artist_id = ?
                 GROUP BY track_name
-                ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistName], (err, tracks) => {
+                ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistId(artistName)], (err, tracks) => {
             if (err) return res.status(500).json({error: err.message});
             
             db.all(`SELECT album_name, MAX(album_id) as album_id,
                     SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
                     SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
                     SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-                    FROM history WHERE ${condition} AND artist_name = ? AND album_name != 'Unknown'
+                    FROM artist_history WHERE ${condition} AND artist_id = ? AND album_name != 'Unknown'
                     GROUP BY album_name
-                    ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistName], (err, albums) => {
+                    ORDER BY playtime DESC, plays DESC, views DESC LIMIT 10`, [artistId(artistName)], (err, albums) => {
                 if (err) return res.status(500).json({error: err.message});
                 
                 res.json({
@@ -637,8 +651,8 @@ app.get('/api/stats/search', (req, res) => {
                     SUM(CASE WHEN event_type='view' THEN 1 ELSE 0 END) as views,
                     SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
                     SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-                    FROM history WHERE ${condition} AND artist_name LIKE ?
-                    GROUP BY artist_name
+                    FROM artist_history WHERE ${condition} AND artist_name LIKE ?
+                    GROUP BY artist_id
                     ORDER BY playtime DESC, plays DESC, views DESC LIMIT 5`, [query], (err, artists) => {
                 if (err) return res.status(500).json({error: err.message});
                 
@@ -737,45 +751,17 @@ app.post('/api/backfill-cover-art', (req, res) => {
     });
 });
 
-const PLACEHOLDER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect fill="#333" width="300" height="300"/><circle fill="#555" cx="150" cy="135" r="40"/><rect fill="#555" x="110" y="175" width="80" height="90" rx="6"/></svg>';
-
-app.get('/api/cover-art/:id', (req, res) => {
-    if (!req.params.id) {
-        return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
-    }
-    // Local cover art assets shipped with the app (e.g. /api/cover-art/manchild.svg)
-    if (req.params.id.endsWith('.svg') || req.params.id.endsWith('.png') || req.params.id.endsWith('.jpg') || req.params.id.endsWith('.jpeg') || req.params.id.endsWith('.webp')) {
-        const safeName = path.basename(req.params.id);
-        const localPath = path.join(__dirname, 'public', 'covers', safeName);
-        if (fs.existsSync(localPath)) {
-            const ext = path.extname(localPath).slice(1).toLowerCase();
-            const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-            res.set('Content-Type', mime);
-            res.set('Cache-Control', 'public, max-age=86400');
-            return fs.createReadStream(localPath).pipe(res);
-        }
-    }
-    const navHost = process.env.NAVIDROME_HOST || 'localhost';
-    const navPort = process.env.NAVIDROME_PORT || '4533';
-    const navUser = process.env.NAVIDROME_USER || '';
-    const navPass = process.env.NAVIDROME_PASS || '';
-    const url = `http://${navHost}:${navPort}/rest/getCoverArt?id=${req.params.id}&u=${navUser}&p=${navPass}&v=1.12.0&c=Viniz`;
-
-    http.get(url, (proxyRes) => {
-        if (proxyRes.statusCode !== 200) {
-            return res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
-        }
-        if (proxyRes.headers['content-type']) {
-            res.set('Content-Type', proxyRes.headers['content-type']);
-        } else {
-            res.set('Content-Type', 'image/jpeg');
-        }
-        res.set('Cache-Control', 'public, max-age=86400');
-        proxyRes.pipe(res);
-    }).on('error', (err) => {
-        console.error('Cover art proxy error:', err.message);
-        res.status(200).set('Content-Type', 'image/svg+xml').end(PLACEHOLDER_SVG);
-    });
+app.post('/api/artwork/repair', async (req,res) => { res.status(202).json(await artwork.repair()); });
+app.get('/api/artwork/repair', (req,res) => res.json(artwork.status()));
+app.get('/api/cover-art/:id', async (req,res) => {
+    const id=req.params.id;
+    const localPath=path.join(__dirname,'public','covers',path.basename(id));
+    if (/\.(svg|png|jpe?g|webp)$/i.test(id) && fs.existsSync(localPath)) return res.sendFile(localPath);
+    try {
+        const image=await artwork.get(await artwork.describe(id));
+        if(image)return res.set('Content-Type',image.mime).set('Cache-Control','public, max-age=604800').end(image.bytes);
+    } catch(error) { console.warn('Artwork unavailable:',error.message); }
+    res.set('Content-Type','image/svg+xml').set('Cache-Control','no-store').end(artwork.placeholder);
 });
 
 // ── NEW ENDPOINTS ──
@@ -872,7 +858,7 @@ app.get('/api/stats/streaks', (req, res) => {
 });
 
 app.get('/api/stats/unique-counts', (req, res) => {
-    db.all(`SELECT 'artists' as type, COUNT(DISTINCT artist_name) as count FROM history WHERE artist_name != 'Unknown'
+    db.all(`SELECT 'artists' as type, COUNT(DISTINCT artist_id) as count FROM artist_history WHERE artist_name != 'Unknown'
             UNION ALL
             SELECT 'albums' as type, COUNT(DISTINCT album_name) as count FROM history WHERE album_name != 'Unknown'
             UNION ALL
@@ -1001,14 +987,14 @@ app.get('/api/stats/library', (req, res) => {
     const params = search ? [`%${search}%`] : [];
 
     if (tab === 'artists') {
-        db.get(`SELECT COUNT(DISTINCT artist_name) as total FROM history WHERE artist_name != 'Unknown' ${searchClause}`,
+        db.get(`SELECT COUNT(DISTINCT artist_id) as total FROM artist_history WHERE artist_name != 'Unknown' ${searchClause}`,
             params, (err, countRes) => {
             if (err) return res.status(500).json({error: err.message});
             db.all(`SELECT artist_name, MAX(artist_id) as artist_id,
                     SUM(CASE WHEN event_type='play' THEN 1 ELSE 0 END) as plays,
                     SUM(CASE WHEN event_type='play' THEN duration ELSE 0 END) as playtime
-                    FROM history WHERE artist_name != 'Unknown' ${searchClause}
-                    GROUP BY artist_name
+                    FROM artist_history WHERE artist_name != 'Unknown' ${searchClause}
+                    GROUP BY artist_id
                     ORDER BY artist_name ASC LIMIT ${limit} OFFSET ${offset}`, params, (err, rows) => {
                 if (err) return res.status(500).json({error: err.message});
                 res.json({ data: rows, total: countRes.total, page, limit });
@@ -1098,15 +1084,18 @@ app.get('/api/player/album-tracks/:albumId', (req, res) => {
     if (!naviDb) return res.json({ tracks: [] });
     try {
         const tracks = naviDb.prepare('SELECT id, title, artist, album, track_number, duration, album_id, artist_id FROM media_file WHERE album_id = ? ORDER BY track_number ASC').all(req.params.albumId);
-        res.json(tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, track_number: t.track_number, duration: t.duration, album_id: t.album_id, artist_id: t.artist_id, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })));
+        res.json({ tracks: tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, track_number: t.track_number, duration: t.duration, album_id: t.album_id, artist_id: t.artist_id, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })) });
     } catch (e) { res.json({ tracks: [] }); }
 });
 
 app.get('/api/player/artist-top-tracks/:artistId', (req, res) => {
     if (!naviDb) return res.json({ tracks: [] });
     try {
-        const tracks = naviDb.prepare('SELECT id, title, artist, album, album_id, artist_id, duration FROM media_file WHERE artist_id = ? ORDER BY play_count DESC LIMIT 20').all(req.params.artistId);
-        res.json(tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, album_id: t.album_id, artist_id: t.artist_id, duration: t.duration, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })));
+        const name = artistNameFromId(req.params.artistId);
+        const tracks = name
+            ? naviDb.prepare(`SELECT * FROM media_file WHERE missing=0 AND EXISTS (SELECT 1 FROM json_each(${artistCredits.creditExpression()}) WHERE json_extract(value,'$.id') = ?) ORDER BY title LIMIT 50`).all(req.params.artistId)
+            : naviDb.prepare('SELECT * FROM media_file WHERE missing=0 AND artist_id=? ORDER BY title LIMIT 50').all(req.params.artistId);
+        res.json({ tracks: tracks.map(t => ({ track_id: t.id, track_name: t.title, artist_name: t.artist, album_name: t.album, album_id: t.album_id, artist_id: t.artist_id, duration: t.duration, stream_url: '/api/stream/' + t.id, cover_url: '/api/cover-art/' + (t.album_id || t.id) })) });
     } catch (e) { res.json({ tracks: [] }); }
 });
 
@@ -1118,7 +1107,7 @@ app.get('/api/recommendations/for-you', (req, res) => {
         db.all('SELECT DISTINCT artist_name FROM history', [], (err, listenedArtists) => {
             if (err) return res.status(500).json({ error: err.message });
             const placeholders = genres.map(() => '?').join(',');
-            db.all('SELECT DISTINCT artist_name, MAX(artist_id) as artist_id, genre, COUNT(*) as play_count FROM history WHERE genre IN (' + placeholders + ') AND genre != \'\' GROUP BY artist_name ORDER BY play_count DESC LIMIT 10', genres, (err, rows) => {
+            db.all('SELECT DISTINCT artist_name, MAX(artist_id) as artist_id, genre, COUNT(*) as play_count FROM artist_history WHERE genre IN (' + placeholders + ') AND genre != \'\' GROUP BY artist_id ORDER BY play_count DESC LIMIT 10', genres, (err, rows) => {
                 if (err) return res.status(500).json({ error: err.message });
                 res.json(rows.map(r => ({ artist_name: r.artist_name, artist_id: r.artist_id, genre: r.genre, reason: 'Genre: ' + r.genre })));
             });
@@ -1164,7 +1153,9 @@ app.get('/api/recommendations/similar/:artist', (req, res) => {
         const params = genres.map(g => '%' + g + '%');
         params.push(req.params.artist);
         const similar = naviDb.prepare('SELECT DISTINCT artist, artist_id, genre FROM media_file WHERE (' + conditions + ') AND artist != ? GROUP BY artist ORDER BY COUNT(*) DESC LIMIT 8').all(...params);
-        res.json(similar.map(s => ({ artist_name: s.artist, artist_id: s.artist_id, genre: s.genre })));
+        const individuals = new Map();
+        similar.forEach(row => splitCredit(row.artist).forEach(person => { if(person.name.toLowerCase() !== req.params.artist.toLowerCase()) individuals.set(person.id, {artist_name:person.name,artist_id:person.id,genre:row.genre}); }));
+        res.json([...individuals.values()].slice(0,8));
     } catch (e) { res.json([]); }
 });
 
@@ -1183,9 +1174,9 @@ app.get('/api/stats/yearly/:year', (req, res) => {
     const endTs = Math.floor(new Date((year + 1) + '-01-01').getTime() / 1000);
     const cond = 'timestamp >= ' + startTs + ' AND timestamp < ' + endTs;
     const uo = Math.round(utcOffset * 3600);
-    db.get('SELECT SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as total_playtime, SUM(CASE WHEN event_type=\'play\' THEN 1 ELSE 0 END) as total_plays, COUNT(DISTINCT track_name) as unique_tracks, COUNT(DISTINCT artist_name) as unique_artists, COUNT(DISTINCT album_name) as unique_albums, COUNT(DISTINCT date(timestamp + ' + uo + ', \'unixepoch\')) as active_days FROM history WHERE ' + cond, [], (err, summary) => {
+    db.get('SELECT SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as total_playtime, SUM(CASE WHEN event_type=\'play\' THEN 1 ELSE 0 END) as total_plays, COUNT(DISTINCT track_name) as unique_tracks, (SELECT COUNT(DISTINCT artist_id) FROM artist_history WHERE ' + cond + ') as unique_artists, COUNT(DISTINCT album_name) as unique_albums, COUNT(DISTINCT date(timestamp + ' + uo + ', \'unixepoch\')) as active_days FROM history WHERE ' + cond, [], (err, summary) => {
         if (err) return res.status(500).json({ error: err.message });
-        db.all('SELECT artist_name, MAX(artist_id) as artist_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' AND artist_name != \'Unknown\' GROUP BY artist_name ORDER BY playtime DESC LIMIT 5', [], (err, topArtists) => {
+        db.all('SELECT artist_name, MAX(artist_id) as artist_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM artist_history WHERE ' + cond + ' AND artist_name != \'Unknown\' GROUP BY artist_id ORDER BY playtime DESC LIMIT 5', [], (err, topArtists) => {
             if (err) return res.status(500).json({ error: err.message });
             db.all('SELECT track_name, artist_name, MAX(track_id) as track_id, MAX(album_id) as album_id, SUM(CASE WHEN event_type=\'play\' THEN duration ELSE 0 END) as playtime, COUNT(*) as plays FROM history WHERE ' + cond + ' GROUP BY track_name, artist_name ORDER BY playtime DESC LIMIT 5', [], (err, topTracks) => {
                 if (err) return res.status(500).json({ error: err.message });

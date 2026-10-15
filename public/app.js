@@ -1,7 +1,7 @@
 // ── Utilities ──
 function getCoverArtUrl(id) {
     if (!id) return '';
-    return `/api/cover-art/${id}`;
+    return `/api/cover-art/${encodeURIComponent(id)}?v=credits1`;
 }
 
 function formatPlaytime(seconds) {
@@ -214,7 +214,7 @@ function renderWeekTopTrack(track) {
         return;
     }
 
-    const coverUrl = getCoverArtUrl(track.album_id || track.track_id);
+    const coverUrl = getCoverArtUrl(track.cover_id || track.album_id || track.track_id);
     coverEl.style.visibility = '';
     coverEl.src = coverUrl;
     coverEl.onerror = () => { coverEl.src = COVER_PLACEHOLDER; };
@@ -335,7 +335,7 @@ function renderTop50() {
     rows.slice(0, 3).forEach((item, i) => {
         const card = document.createElement('div');
         card.className = `podium-card ${podiumClasses[i]}`;
-        const coverUrl = getCoverArtUrl(item.album_id || item.track_id);
+        const coverUrl = getCoverArtUrl(item.cover_id || item.album_id || item.track_id);
         card.innerHTML = `
             <span class="podium-medal">${medals[i]}</span>
             <div class="podium-cover-wrap">
@@ -366,7 +366,7 @@ function renderTop50() {
         li.dataset.rank = String(rank).padStart(2, '0');
         if (playingId && item.track_id && item.track_id === playingId) li.classList.add('now-playing');
 
-        const coverUrl = getCoverArtUrl(item.album_id || item.track_id);
+        const coverUrl = getCoverArtUrl(item.cover_id || item.album_id || item.track_id);
         const pct = maxPlaytime > 0 ? Math.max(3, Math.round((item.playtime / maxPlaytime) * 100)) : 0;
         li.innerHTML = `
             <span class="top50-rank">${li.dataset.rank}</span>
@@ -470,11 +470,11 @@ function renderListItems(dataList, listElId, type) {
         let sub = '';
         
         if (type === 'tracks') {
-            imgUrl = getCoverArtUrl(item.album_id || item.track_id);
+            imgUrl = getCoverArtUrl(item.cover_id || item.album_id || item.track_id);
             title = item.track_name;
             sub = item.artist_name;
         } else if (type === 'albums') {
-            imgUrl = getCoverArtUrl(item.album_id);
+            imgUrl = getCoverArtUrl(item.cover_id || item.album_id);
             title = item.album_name;
             sub = item.artist_name;
         } else if (type === 'artists') {
@@ -596,7 +596,7 @@ async function loadTimeline(reset) {
 
             const entry = document.createElement('div');
             entry.className = 'timeline-entry';
-            const imgUrl = getCoverArtUrl(item.album_id || item.track_id);
+            const imgUrl = getCoverArtUrl(item.cover_id || item.album_id || item.track_id);
             const isPlay = item.event_type === 'play';
 
             entry.innerHTML = `
@@ -1099,7 +1099,7 @@ async function loadLibrary(page) {
                 }
             } else if (libraryTab === 'albums') {
                 card.innerHTML = `
-                    <img src="${getCoverArtUrl(item.album_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
+                    <img src="${getCoverArtUrl(item.cover_id || item.album_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.album_name)}</span>
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${item.plays} plays</span>
                 `;
@@ -1121,7 +1121,7 @@ async function loadLibrary(page) {
                 }
             } else {
                 card.innerHTML = `
-                    <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
+                    <img src="${getCoverArtUrl(item.cover_id || item.album_id || item.track_id)}" class="library-card-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                     <span class="library-card-name">${escapeHtml(item.track_name)}</span>
                     <span class="library-card-sub">${escapeHtml(item.artist_name)} • ${escapeHtml(item.album_name)}</span>
                 `;
@@ -1135,7 +1135,7 @@ async function loadLibrary(page) {
                     playBtn.style.right = '8px';
                     playBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        playTrackFromListing(item.track_name, item.artist_name, item.album_name, getCoverArtUrl(item.album_id || item.track_id), item.playtime, item.track_id, item.album_id);
+                        playTrackFromListing(item.track_name, item.artist_name, item.album_name, getCoverArtUrl(item.cover_id || item.album_id || item.track_id), item.playtime, item.track_id, item.album_id);
                     });
                     card.style.position = 'relative';
                     card.appendChild(playBtn);
@@ -1248,7 +1248,7 @@ async function openArtistModal(artistName, filter) {
         data.top_tracks.forEach(item => {
             const li = document.createElement('li');
             li.innerHTML = `
-                <img src="${getCoverArtUrl(item.album_id || item.track_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
+                <img src="${getCoverArtUrl(item.cover_id || item.album_id || item.track_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                 <div class="item-info">
                     <span class="item-name">${escapeHtml(item.track_name)}</span>
                     <span class="item-sub">${item.views} views</span>
@@ -1264,7 +1264,7 @@ async function openArtistModal(artistName, filter) {
         data.top_albums.forEach(item => {
             const li = document.createElement('li');
             li.innerHTML = `
-                <img src="${getCoverArtUrl(item.album_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
+                <img src="${getCoverArtUrl(item.cover_id || item.album_id)}" class="cover-art" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3QgZmlsbD0iIzJhMmEyYSIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiLz48Y2lyY2xlIGZpbGw9IiM0NDQiIGN4PSIxNTAiIGN5PSIxMzAiIHI9IjM1Ii8+PHJlY3QgZmlsbD0iIzQ0NCIgeD0iMTE1IiB5PSIxNjUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI4NSIgcng9IjUiLz48L3N2Zz4='">
                 <div class="item-info">
                     <span class="item-name">${escapeHtml(item.album_name)}</span>
                     <span class="item-sub">${item.plays} plays</span>
@@ -1300,7 +1300,7 @@ async function openAlbumModal(albumName) {
         const res = await fetch(`/api/stats/album/${encodeURIComponent(albumName)}`);
         const data = await res.json();
         
-        document.getElementById('modal-album-image').src = getCoverArtUrl(data.summary.album_id);
+        document.getElementById('modal-album-image').src = getCoverArtUrl(data.summary.cover_id || data.summary.album_id);
         document.getElementById('modal-album-artist').innerText = data.summary.artist_name || '';
         document.getElementById('modal-album-plays').innerText = `${data.summary.plays || 0} plays`;
         document.getElementById('modal-album-playtime').innerText = formatPlaytime(data.summary.playtime);
@@ -1630,7 +1630,7 @@ async function loadDiscoverTracks() {
       const card = document.createElement('div');
       card.className = 'discover-card';
       card.innerHTML = `
-        <img src="${track.cover_url || getCoverArtUrl(track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
+        <img src="${track.cover_url || getCoverArtUrl(track.cover_id || track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
         <div class="discover-card-info">
           <span class="discover-card-name">${escapeHtml(track.track_name)}</span>
           <span class="discover-card-sub">${escapeHtml(track.artist_name)} • ${escapeHtml(track.album_name)}</span>
@@ -1661,7 +1661,7 @@ async function loadAtThisHour() {
       const card = document.createElement('div');
       card.className = 'discover-card';
       card.innerHTML = `
-        <img src="${getCoverArtUrl(track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
+        <img src="${getCoverArtUrl(track.cover_id || track.album_id || track.track_id)}" class="discover-card-img" onerror="this.style.display='none'">
         <div class="discover-card-info">
           <span class="discover-card-name">${escapeHtml(track.track_name)}</span>
           <span class="discover-card-sub">${escapeHtml(track.artist_name)}</span>
@@ -1671,7 +1671,7 @@ async function loadAtThisHour() {
       `;
       card.querySelector('.discover-card-play').addEventListener('click', (e) => {
         e.stopPropagation();
-        playTrackFromListing(track.track_name, track.artist_name, track.album_name, getCoverArtUrl(track.album_id || track.track_id), 0, track.track_id, track.album_id);
+        playTrackFromListing(track.track_name, track.artist_name, track.album_name, getCoverArtUrl(track.cover_id || track.album_id || track.track_id), 0, track.track_id, track.album_id);
       });
       grid.appendChild(card);
     });
@@ -1783,9 +1783,9 @@ async function loadYearlyStats(year) {
       <div class="yearly-section">
         <h3>Top Songs</h3>
         ${(data.top_tracks || []).map((t, i) => `
-          <div class="yearly-rank" onclick="playTrackFromListing('${escapeHtml(t.track_name).replace(/'/g, "\\'")}', '${escapeHtml(t.artist_name).replace(/'/g, "\\'")}', '', '${getCoverArtUrl(t.album_id || t.track_id)}', 0, '${t.track_id || ''}', '${t.album_id || ''}')">
+          <div class="yearly-rank" onclick="playTrackFromListing('${escapeHtml(t.track_name).replace(/'/g, "\\'")}', '${escapeHtml(t.artist_name).replace(/'/g, "\\'")}', '', '${getCoverArtUrl(t.cover_id || t.album_id || t.track_id)}', 0, '${t.track_id || ''}', '${t.album_id || ''}')">
             <span class="yearly-rank-pos">${i + 1}</span>
-            <img src="${getCoverArtUrl(t.album_id || t.track_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
+            <img src="${getCoverArtUrl(t.cover_id || t.album_id || t.track_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
             <div class="yearly-rank-info">
               <span class="yearly-rank-name">${escapeHtml(t.track_name)}</span>
               <span class="yearly-rank-sub">${escapeHtml(t.artist_name)}</span>
@@ -1800,7 +1800,7 @@ async function loadYearlyStats(year) {
         ${(data.top_albums || []).map((a, i) => `
           <div class="yearly-rank" onclick="openAlbumModal('${escapeHtml(a.album_name).replace(/'/g, "\\'")}')">
             <span class="yearly-rank-pos">${i + 1}</span>
-            <img src="${getCoverArtUrl(a.album_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
+            <img src="${getCoverArtUrl(a.cover_id || a.album_id)}" class="yearly-rank-cover" onerror="this.style.display='none'">
             <div class="yearly-rank-info">
               <span class="yearly-rank-name">${escapeHtml(a.album_name)}</span>
               <span class="yearly-rank-sub">${escapeHtml(a.artist_name)}</span>
